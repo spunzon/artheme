@@ -74,5 +74,17 @@ ZIP="$OUT/Omakase-${VERSION}.zip"
 rm -f "$ZIP"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 
+# A disk image with a shortcut to /Applications: the drag-and-drop most people
+# expect from a Mac app, and one less "where do I put this?" for the receiver.
+STAGE="$OUT/dmg"
+DMG="$OUT/Omakase-${VERSION}.dmg"
+rm -rf "$STAGE" "$DMG"
+mkdir -p "$STAGE"
+cp -R "$APP" "$STAGE/"
+ln -s /Applications "$STAGE/Applications"
+hdiutil create -volname "Omakase" -srcfolder "$STAGE" -ov -format UDZO -quiet "$DMG"
+rm -rf "$STAGE"
+
 echo "→ $APP"
 echo "→ $ZIP  ($(du -h "$ZIP" | cut -f1))"
+echo "→ $DMG  ($(du -h "$DMG" | cut -f1))"
