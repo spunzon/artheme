@@ -55,6 +55,15 @@ case "doctor":
                                    : (i.isWired ? "wired" : "installed but not wired")
         print("  \(mark)  \(i.name.padding(toLength: 18, withPad: " ", startingAt: 0)) \(state)")
     }
+case "seed":
+    // Themes bundled with the app, copied in on first run. Also useful on its
+    // own: `omakase seed <dir>` adopts a directory of themes.
+    let source = args.count > 1
+        ? URL(fileURLWithPath: args[1])
+        : Bundle.main.bundleURL.deletingLastPathComponent()
+            .appendingPathComponent("Resources/Themes")
+    let n = library.seed(from: source)
+    print("seeded \(n) theme(s) from \(source.path)")
 case "install":
     try switcher.install()
     print("wired up. Now pick a theme:  omakase <name>")

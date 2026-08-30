@@ -11,6 +11,9 @@ let package = Package(
         .executableTarget(name: "omakase", dependencies: ["OmakaseKit"]),
         // Omakase.app — the window and the menu bar item.
         .executableTarget(name: "OmakaseApp", dependencies: ["OmakaseKit"]),
-        .testTarget(name: "OmakaseKitTests", dependencies: ["OmakaseKit"]),
+        // A plain executable, not a testTarget: XCTest ships with Xcode, not
+        // with the Command Line Tools, and the whole point is building with
+        // only the latter. Run it with `swift run OmakaseTests`.
+        .executableTarget(name: "OmakaseTests", dependencies: ["OmakaseKit"]),
     ]
 )

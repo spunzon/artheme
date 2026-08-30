@@ -14,7 +14,14 @@ final class ThemeStore: ObservableObject {
     private let library = Library()
     private lazy var switcher = Switcher(library: library)
 
-    init() { reload() }
+    init() {
+        // A downloaded app starts with an empty ~/.config/omakase, so the
+        // themes shipped in the bundle are copied in on first launch.
+        if let bundled = Bundle.main.resourceURL?.appendingPathComponent("Themes") {
+            library.seed(from: bundled)
+        }
+        reload()
+    }
 
     func reload() {
         themes = library.themes()

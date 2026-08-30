@@ -86,13 +86,60 @@ public struct Library: Sendable {
 
 public enum Paths {
     /// `parent/name`, refusing anything that could escape the directory.
-    /// Names reach this from remote listings and from the command line.
+    ///
+    /// Names reach this from remote listings and from the command line, so the
+    /// name itself is what is validated — no separators, no `..`, nothing
+    /// hidden. That is the guarantee; the parent check below is defence in
+    /// depth and deliberately does NOT touch the file system:
+    /// `resolvingSymlinksInPath` strips a leading /private only when the path
+    /// already exists, so an existing parent and a not-yet-created child
+    /// resolve to different prefixes and every legitimate name gets rejected.
     public static func safeChild(of parent: URL, named name: String) -> URL? {
         guard !name.isEmpty, !name.hasPrefix("."), !name.contains("/"),
               !name.contains("\\"), name != "..", name != "." else { return nil }
         let child = parent.appendingPathComponent(name)
-        guard child.standardizedFileURL.path.hasPrefix(
-            parent.standardizedFileURL.path + "/") else { return nil }
+        // Compare normalised path strings, not URLs: deletingLastPathComponent
+        // leaves a trailing slash and URL(fileURLWithPath:) only adds one when
+        // the directory already exists, so == would depend on what is on disk.
+        func normalised(_ url: URL) -> String {
+            var path = url.standardizedFileURL.path
+            while path.count > 1 && path.hasSuffix("/") { path.removeLast() }
+            return path
+        }
+        guard normalised(child.deletingLastPathComponent()) == normalised(parent)
+        else { return nil }
         return child
+    }
+}
+
+public extension Library {
+    /// Copy the themes bundled with the app into the user's library.
+    ///
+    /// A freshly downloaded app must not open on an empty grid, and the themes
+    /// it ships are ~600 bytes each. Existing themes are never touched: this
+    /// only fills in what is missing.
+    @discardableResult
+    func seed(from source: URL) -> Int {
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: source, includingPropertiesForKeys: nil) else { return 0 }
+        do { try ensureDirectories() } catch {
+            // Never silent: a home that cannot be written to is worth saying.
+            FileHandle.standardError.write(
+                Data("omakase: cannot create \(themesDirectory.path): \(error.localizedDescription)\n".utf8))
+            return 0
+        }
+        var copied = 0
+        for entry in entries {
+            guard FileManager.default.fileExists(
+                atPath: entry.appendingPathComponent("colors.toml").path),
+                  let destination = Paths.safeChild(of: themesDirectory,
+                                                    named: entry.lastPathComponent),
+                  !FileManager.default.fileExists(atPath: destination.path)
+            else { continue }
+            if (try? FileManager.default.copyItem(at: entry, to: destination)) != nil {
+                copied += 1
+            }
+        }
+        return copied
     }
 }
