@@ -11,3 +11,9 @@ themes/*/backgrounds/
 # Python bytecode from importing bin/theme as a module
 __pycache__/
 *.pyc
+
+# Swift build artefacts
+app/.build/
+app/.swiftpm/
+*.xcodeproj
+app/build/
