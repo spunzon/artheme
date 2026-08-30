@@ -10,6 +10,8 @@ final class ThemeStore: ObservableObject {
     @Published private(set) var currentSlug: String?
     @Published private(set) var busySlug: String?
     @Published private(set) var fetching: String?
+    @Published private(set) var failed: String?
+    @Published private(set) var showsProgress = false
     @Published var notes: [String] = []
 
     private let library = Library()
@@ -57,17 +59,30 @@ final class ThemeStore: ObservableObject {
         guard theme.wallpapers.isEmpty, FileManager.default.fileExists(atPath: source.path)
         else { return }
         fetching = theme.slug
+        failed = nil
+        // Held back on purpose: an indicator that shows and hides within half a
+        // second is worse than none, and most downloads finish inside it.
+        Task {
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            if fetching == theme.slug { showsProgress = true }
+        }
         Task { [library] in
             let landed: Int = await Task.detached(priority: .background) {
-                (try? Fetcher(library: library).refetchWallpapers(theme.slug))?.wallpapers ?? 0
+                // The first picture to arrive goes up straight away; the rest
+                // keep downloading behind it for the wallpaper picker.
+                var shown = false
+                let result = try? Fetcher(library: library)
+                    .refetchWallpapers(theme.slug) { url, _ in
+                        guard !shown else { return }
+                        shown = true
+                        library.remember(wallpaper: url, for: theme)
+                        WallpaperIntegration().set(url)
+                    }
+                return result?.wallpapers ?? 0
             }.value
-            if landed > 0, let updated = try? library.theme(named: theme.slug),
-               let image = library.wallpaper(for: updated) {
-                await Task.detached(priority: .userInitiated) {
-                    WallpaperIntegration().set(image)
-                }.value
-            }
             fetching = nil
+            showsProgress = false
+            failed = landed == 0 ? theme.slug : nil
             reload()
         }
     }

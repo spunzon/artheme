@@ -193,10 +193,18 @@ public struct WallpaperIntegration: Integration {
     }
 
     public func apply(_ theme: Theme, _ l: Library) throws -> String? {
-        // A theme with no wallpapers leaves the desktop alone, on purpose: a
-        // dynamic system wallpaper has no file path and cannot be restored.
-        guard machine.appliesLive, let image = l.wallpaper(for: theme) else { return nil }
-        return set(image)
+        guard machine.appliesLive else { return nil }
+        if let image = l.wallpaper(for: theme) { return set(image) }
+
+        // No picture yet. If one is on its way — the theme knows where it came
+        // from — put the theme's own colour up immediately rather than leaving
+        // the previous wallpaper sitting there while everything else changed.
+        // A theme that ships none at all still leaves the desktop alone, on
+        // purpose: a dynamic system wallpaper has no file path to restore.
+        let source = theme.directory.appendingPathComponent("source.json")
+        guard FileManager.default.fileExists(atPath: source.path),
+              let flat = SolidImage.url(for: theme.background, in: l) else { return nil }
+        return set(flat)
     }
 
     /// Apply to EVERY Space and display.

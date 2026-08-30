@@ -102,9 +102,16 @@ struct ContentView: View {
             } else {
                 Text("No theme applied").font(.caption).foregroundStyle(.secondary)
             }
-            if let fetching = store.fetching {
+            if store.showsProgress, let fetching = store.fetching {
                 ProgressView().controlSize(.small).scaleEffect(0.7)
                 Text("fetching \(fetching) wallpapers…")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else if let failed = store.failed {
+                // Silence here is the worst outcome: without this the user
+                // cannot tell "no wallpapers", "still downloading" and "no
+                // internet" apart.
+                Label("couldn't fetch \(failed) wallpapers — check your connection",
+                      systemImage: "wifi.exclamationmark")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()

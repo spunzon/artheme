@@ -46,7 +46,8 @@ public struct Fetcher: Sendable {
     /// `fetch("owner/repo")` or `fetch("owner/repo#branch")` from a theme repo.
     @discardableResult
     public func fetch(_ spec: String, as alias: String? = nil,
-                      wallpapers wantWallpapers: Bool = true) throws -> Result {
+                      wallpapers wantWallpapers: Bool = true,
+                      onImage: ((URL, Int) -> Void)? = nil) throws -> Result {
         let repo: String, ref: String, base: String, derived: String
         if spec.contains("/") {
             let parts = spec.split(separator: "#", maxSplits: 1).map(String.init)
@@ -85,7 +86,8 @@ public struct Fetcher: Sendable {
             if dirs.contains("backgrounds") {
                 let (n, s) = try wallpaperSet(repo: repo, ref: ref,
                                               path: join(base, "backgrounds"),
-                                              into: destination.appendingPathComponent("backgrounds"))
+                                              into: destination.appendingPathComponent("backgrounds"),
+                                              onImage: onImage)
                 count += n; skipped += s
             }
             // Some themes ship a second set; prefix it so both can coexist.
@@ -108,8 +110,12 @@ public struct Fetcher: Sendable {
     }
 
     /// Re-download the wallpapers of a theme that is already installed.
+    /// `onImage` fires as each wallpaper lands, so a caller can put the first
+    /// one up without waiting for the rest — a theme with nine wallpapers took
+    /// 7.6 seconds to finish, and the first one arrives in about one.
     @discardableResult
-    public func refetchWallpapers(_ slug: String) throws -> Result {
+    public func refetchWallpapers(_ slug: String,
+                                  onImage: ((URL, Int) -> Void)? = nil) throws -> Result {
         guard let dir = Paths.safeChild(of: library.themesDirectory, named: slug) else {
             throw FetchError.unsafeName(slug)
         }
@@ -123,7 +129,7 @@ public struct Fetcher: Sendable {
         for (path, prefix) in [("backgrounds", ""), ("backgrounds-alt", "alt-")] {
             if let (n, s) = try? wallpaperSet(repo: repo, ref: ref, path: join(base, path),
                                               into: dir.appendingPathComponent("backgrounds"),
-                                              prefix: prefix) {
+                                              prefix: prefix, onImage: onImage) {
                 count += n; skipped += s
             }
         }
@@ -178,7 +184,8 @@ public struct Fetcher: Sendable {
     }
 
     private func wallpaperSet(repo: String, ref: String, path: String,
-                              into directory: URL, prefix: String = "")
+                              into directory: URL, prefix: String = "",
+                              onImage: ((URL, Int) -> Void)? = nil)
         throws -> (Int, [String]) {
         let images: Set<String> = ["jpg", "jpeg", "png", "heic", "webp"]
         let listing = try contents(repo: repo, path: path, ref: ref)
@@ -196,6 +203,7 @@ public struct Fetcher: Sendable {
             if Files.exists(out) { continue }
             try download(item.downloadURL, to: out)
             count += 1
+            onImage?(out, count)
         }
         return (count, skipped)
     }
