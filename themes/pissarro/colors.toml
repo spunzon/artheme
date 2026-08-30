@@ -1,0 +1,37 @@
+# Pissarro — de mattbbia/pissarro (tema claro, inspirado en Camille Pissarro).
+name = "Pissarro"
+
+mode = "light"
+
+accent = "#68559b"
+selection = "#827013"
+muted = "#83847d"
+
+background = "#f1f3ea"
+dark_background = "#b5b6b0"
+darker_background = "#787a75"
+lighter_background = "#f2f4ec"
+
+foreground = "#1a1d05"
+dark_foreground = "#131504"
+light_foreground = "#3c3f2a"
+bright_foreground = "#535644"
+
+red = "#585000"
+yellow = "#687013"
+orange = "#5e5b07"
+green = "#50419a"
+cyan = "#8252ba"
+blue = "#68559b"
+magenta = "#527100"
+brown = "#343204"
+
+bright_red = "#7a7300"
+bright_yellow = "#8a9605"
+bright_green = "#735ed0"
+bright_cyan = "#aa6ef2"
+bright_blue = "#8d74ce"
+bright_magenta = "#719800"
+
+# color15 exacto del ghostty.conf del autor; no se deriva de los nombres semánticos.
+color15 = "#373c1a"

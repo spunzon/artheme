@@ -1,0 +1,1052 @@
+#!/usr/bin/env python3
+"""omakase — Omarchy-style themes for macOS.
+
+A theme is a directory with a colors.toml (same format as Omarchy) and,
+optionally, backgrounds/. Everything else — terminal, status bar, window
+borders, wallpaper and the system light/dark mode — is derived from that one
+file.
+
+    theme                     show the active theme and the list
+    theme list
+    theme set <name>          (or just: theme <name>)
+    theme next                rotate to the next theme
+    theme reload              re-apply the active theme
+    theme bg [n|next|name]    pick the wallpaper among the theme's own
+
+    theme fetch <name|owner/repo>   download a theme from GitHub
+    theme install             wire up the apps (idempotent, keeps backups)
+    theme doctor              report which integrations are detected
+    theme restore             put the touched files back
+    theme demo [names...]     cycle themes on a timer, for screen recording
+"""
+
+import json
+import os
+import re
+import shlex
+import signal
+import plistlib
+import shutil
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+THEMES = ROOT / "themes"
+GEN = ROOT / "generated"
+CURRENT = ROOT / "current"
+
+GHOSTTY_CONF = GEN / "ghostty.conf"
+SKETCHYBAR_COLORS = GEN / "sketchybar-colors.sh"
+
+GHOSTTY_USER_CONF = Path.home() / ".config" / "ghostty" / "config"
+SKETCHYBAR_SHIM = Path.home() / ".config" / "sketchybar" / "colors.sh"
+BORDERS_RC = Path.home() / ".config" / "borders" / "bordersrc"
+HERDR_CONF = Path.home() / ".config" / "herdr" / "config.toml"
+
+# Upstream Omarchy, for `theme fetch <name>`. The repo moved from
+# basecamp/omarchy to omacom/omarchy, and the default branch is `quattro`.
+OMARCHY_REPO = "omacom/omarchy"
+OMARCHY_BRANCH = "quattro"
+
+IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
+
+
+def borders_bin():
+    """JankyBorders, wherever Homebrew put it (arm64 vs Intel prefix)."""
+    found = shutil.which("borders")
+    if found:
+        return found
+    for p in ("/opt/homebrew/bin/borders", "/usr/local/bin/borders"):
+        if Path(p).exists():
+            return p
+    return None
+
+
+# --- colour helpers --------------------------------------------------------
+
+def rgb(h):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def hexs(t):
+    return "#%02x%02x%02x" % t
+
+
+def mix(a, b, t):
+    """Blend a→b. t=0 gives a, t=1 gives b."""
+    ra, rb = rgb(a), rgb(b)
+    return hexs(tuple(round(ra[i] + (rb[i] - ra[i]) * t) for i in range(3)))
+
+
+def luma(h):
+    r, g, b = (c / 255 for c in rgb(h))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def sb(h, alpha="ff"):
+    """SketchyBar colour literal: 0xAARRGGBB, quoted for the shell.
+
+    load() already guarantees hex, so the quoting is belt and braces: this file
+    is sourced by the user's sketchybarrc, and nothing that reaches it should
+    ever be able to run.
+    """
+    return shlex.quote("0x" + alpha + h.lstrip("#").lower())
+
+
+# --- loading a theme -------------------------------------------------------
+
+# Omarchy themes come in two schemes. The current one numbers the palette
+# (color0..color15); the semantic one names it (red, bright_blue, muted...).
+# The mapping below was checked against the ghostty.conf published by
+# mattbbia/pissarro.
+SEMANTIC = {
+    "color0": "background", "color1": "red", "color2": "green",
+    "color3": "yellow", "color4": "blue", "color5": "magenta",
+    "color6": "cyan", "color7": "foreground", "color8": "muted",
+    "color9": "bright_red", "color10": "bright_green",
+    "color11": "bright_yellow", "color12": "bright_blue",
+    "color13": "bright_magenta", "color14": "bright_cyan",
+    "color15": "bright_foreground",
+}
+
+
+HEX = re.compile(r"\A#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\Z")
+
+COLOR_KEYS = ({"background", "foreground", "accent", "cursor", "selection",
+               "selection_background", "selection_foreground"}
+              | {f"color{i}" for i in range(16)}
+              | set(SEMANTIC.values()))
+
+
+def clean_color(value, key, path):
+    """A colour is hex digits and nothing else.
+
+    These values end up inside files that get EXECUTED: bordersrc is run by the
+    window manager, and sketchybar-colors.sh is sourced by sketchybarrc. An
+    unvalidated `accent = "#ff8800$(curl … | sh)"` would therefore be command
+    execution with a theme file as the entry point — and themes are downloaded
+    from other people's repositories. Every value is treated as hostile.
+    """
+    v = value.strip()
+    if not HEX.match(v):
+        sys.exit(f"error: {path}: {key} = {value!r} is not a hex colour")
+    v = v.lstrip("#").lower()
+    if len(v) == 3:
+        v = "".join(ch * 2 for ch in v)
+    return "#" + v[:6]          # an alpha channel, if any, is dropped
+
+
+def clean_text(value, limit=64):
+    """Free text (a theme's name) still lands in generated files: keep it
+    printable, short, and free of anything a shell or AppleScript would read."""
+    return "".join(ch for ch in value
+                   if ch.isprintable() and ch not in '"\\`$')[:limit]
+
+
+def osa_str(value):
+    """Quote a value for embedding in AppleScript source."""
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def load(path):
+    """Minimal parser for the slice of TOML these theme files actually use."""
+    c = {}
+    for line in path.read_text().splitlines():
+        m = re.match(r'^\s*([A-Za-z_][\w]*)\s*=\s*"([^"]*)"', line)
+        if m:
+            key, value = m.group(1), m.group(2)
+            c[key] = (clean_color(value, key, path) if key in COLOR_KEYS
+                      else clean_text(value))
+    if "background" not in c or "foreground" not in c:
+        sys.exit(f"error: {path} defines no background/foreground")
+
+    # Semantic scheme -> numbered palette.
+    if "color0" not in c:
+        for num, sem in SEMANTIC.items():
+            if sem in c:
+                c[num] = c[sem]
+
+    c.setdefault("accent", c.get("color4", c["foreground"]))
+    c.setdefault("cursor", c["foreground"])
+    c.setdefault("selection_background", c.get("selection", c["foreground"]))
+    c.setdefault("selection_foreground", c["background"])
+    c.setdefault("appearance", c.get("mode") or "")
+    if c["appearance"] not in ("dark", "light"):
+        c["appearance"] = "dark" if luma(c["background"]) < 0.5 else "light"
+    c.setdefault("name", path.parent.name)
+    for i in range(16):
+        c.setdefault(f"color{i}", c["foreground"])
+    return c
+
+
+def themes():
+    if not THEMES.is_dir():
+        return []
+    return sorted(d.name for d in THEMES.iterdir() if (d / "colors.toml").is_file())
+
+
+def current():
+    if CURRENT.is_symlink():
+        return CURRENT.resolve().name
+    return None
+
+
+# --- generators ------------------------------------------------------------
+
+def gen_ghostty(c):
+    lines = [
+        "# Generated by `theme` — do not edit by hand.",
+        f"# Theme: {c['name']}",
+        "",
+    ]
+    for i in range(16):
+        lines.append(f"palette = {i}={c[f'color{i}']}")
+    lines += [
+        "",
+        f"background = {c['background']}",
+        f"foreground = {c['foreground']}",
+        f"cursor-color = {c['cursor']}",
+        f"cursor-text = {c['background']}",
+        f"selection-background = {c['selection_background']}",
+        f"selection-foreground = {c['selection_foreground']}",
+        f"window-theme = {c['appearance']}",
+        "",
+    ]
+    GHOSTTY_CONF.write_text("\n".join(lines))
+
+
+def gen_sketchybar(c):
+    """SketchyBar needs more shades than a theme ships, so the rest are mixed
+    out of background and foreground."""
+    bg, fg, accent = c["background"], c["foreground"], c["accent"]
+    on_accent = "#111111" if luma(accent) > 0.55 else "#ffffff"
+    border = mix(bg, fg, 0.16)
+    SKETCHYBAR_COLORS.write_text(f"""#!/bin/bash
+# Generated by `theme` — do not edit by hand.
+# Theme: {c['name']}
+# SketchyBar format: 0xAARRGGBB (alpha comes FIRST).
+
+# --- Base ---
+export BAR_COLOR={sb(bg, 'f0')}
+export BAR_BORDER_COLOR={sb(border)}
+export ITEM_BG_COLOR={sb(mix(bg, fg, 0.08))}
+export ITEM_BORDER_COLOR={sb(border)}
+
+# --- Text ---
+export FG={sb(fg)}
+export FG_DIM={sb(mix(bg, fg, 0.60))}
+export FG_ON_ACCENT={sb(on_accent)}
+
+# --- Accents ---
+export ACCENT={sb(accent)}
+export BLUE={sb(c['color4'])}
+export PURPLE={sb(c['color5'])}
+export GREEN={sb(c['color2'])}
+export RED={sb(c['color1'])}
+export ORANGE={sb(c['color11'])}
+export YELLOW={sb(c['color3'])}
+export CYAN={sb(c['color6'])}
+export MAGENTA={sb(c['color13'])}
+
+# --- Workspace states ---
+export WS_FOCUSED_BG={sb(accent)}
+export WS_FOCUSED_FG={sb(on_accent)}
+export WS_VISIBLE_BG={sb(accent, '40')}
+export WS_VISIBLE_FG={sb(accent)}
+export WS_OCCUPIED_BG='0x00000000'
+export WS_OCCUPIED_FG={sb(fg)}
+export WS_EMPTY_FG={sb(mix(bg, fg, 0.60))}
+
+# --- Transparent ---
+export TRANSPARENT='0x00000000'
+""")
+
+
+def gen_herdr(c):
+    """Rewrite [theme.custom] in herdr's config.
+
+    herdr ships its own theming engine: `name` picks one of its themes and
+    [theme.custom] overrides it colour by colour. We also set a light or dark
+    base to match, so anything custom doesn't cover stays coherent. The edit is
+    surgical — only that section and that one line.
+    """
+    if not HERDR_CONF.is_file():
+        return
+    bg, fg = c["background"], c["foreground"]
+    colors = {
+        "accent": c["accent"],
+        "panel_bg": bg,
+        "surface_dim": mix(bg, fg, 0.05),
+        "surface0": mix(bg, fg, 0.08),
+        "surface1": mix(bg, fg, 0.14),
+        "overlay0": mix(bg, fg, 0.40),
+        "overlay1": mix(bg, fg, 0.55),
+        "text": fg,
+        "subtext0": mix(bg, fg, 0.65),
+        "mauve": c["color5"],
+        "green": c["color2"],
+        "yellow": c["color3"],
+        "red": c["color1"],
+        "blue": c["color4"],
+        "teal": c["color6"],
+        "peach": c["color9"],
+    }
+    base = "rose-pine" if c["appearance"] == "dark" else "rose-pine-dawn"
+
+    bak = HERDR_CONF.with_suffix(".toml.omakase-bak")
+    if not bak.exists():
+        shutil.copy2(HERDR_CONF, bak)
+
+    out, i = [], 0
+    lines = HERDR_CONF.read_text().splitlines()
+    in_theme = False
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if stripped == "[theme.custom]":
+            # Skip the whole block: up to the next table or EOF.
+            i += 1
+            while i < len(lines) and not lines[i].strip().startswith("["):
+                i += 1
+            continue
+        if stripped.startswith("["):
+            in_theme = stripped == "[theme]"
+        elif in_theme and re.match(r"^\s*name\s*=", line):
+            line = f'name = "{base}"'
+        out.append(line)
+        i += 1
+
+    while out and not out[-1].strip():
+        out.pop()
+    out.append("")
+    out.append("# Generated by `theme` — do not edit by hand.")
+    out.append("[theme.custom]")
+    out += [f'{k} = "{v}"' for k, v in colors.items()]
+    HERDR_CONF.write_text("\n".join(out) + "\n")
+
+
+def gen_borders(c):
+    binary = borders_bin()
+    if not binary:
+        return
+    BORDERS_RC.parent.mkdir(parents=True, exist_ok=True)
+    # Absolute path on purpose: this is launched by the window manager, which
+    # does not have the user's PATH.
+    BORDERS_RC.write_text(f"""#!/bin/bash
+# Generated by `theme` — do not edit by hand.
+# Theme: {c['name']}
+options=(
+  {shlex.quote("active_color=0xff" + c['accent'].lstrip('#'))}
+  inactive_color=0x00000000
+  width=6.0
+)
+exec {binary} "${{options[@]}}"
+""")
+    BORDERS_RC.chmod(0o755)
+
+
+# --- wallpaper -------------------------------------------------------------
+
+def backgrounds(theme_dir):
+    d = theme_dir / "backgrounds"
+    if not d.is_dir():
+        return []
+    return sorted(p for p in d.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES)
+
+
+def wallpaper_for(theme_dir):
+    """The theme's wallpaper, or None if it ships none.
+
+    A theme without backgrounds/ leaves the desktop alone: we never overwrite a
+    system wallpaper we wouldn't know how to restore.
+    """
+    imgs = backgrounds(theme_dir)
+    if not imgs:
+        return None
+    choice = (GEN / f"wallpaper-{theme_dir.name}.txt")
+    if choice.is_file():
+        want = choice.read_text().strip()
+        for i in imgs:
+            if i.name == want:
+                return i
+    return imgs[0]
+
+
+WALLPAPER_INDEX = (
+    Path.home()
+    / "Library/Application Support/com.apple.wallpaper/Store/Index.plist"
+)
+
+
+def set_wallpaper(img):
+    """Apply the wallpaper to EVERY Space and display.
+
+    `System Events` only reaches the active Space of each display, so every
+    other Mission Control Space would keep the old picture. The only way to
+    cover them all is to rewrite WallpaperAgent's index and restart it.
+    """
+    if not WALLPAPER_INDEX.is_file():
+        r = osa('tell application "System Events" to tell every desktop '
+                f'to set picture to POSIX file {osa_str(img)}')
+        return None if r.returncode == 0 else "wallpaper: not applied"
+
+    bak = WALLPAPER_INDEX.with_suffix(".plist.omakase-bak")
+    if not bak.exists():
+        shutil.copy2(WALLPAPER_INDEX, bak)
+
+    cfg = plistlib.dumps(
+        {"type": "imageFile", "url": {"relative": img.as_uri()}},
+        fmt=plistlib.FMT_BINARY,
+    )
+
+    def retarget(node):
+        """Repoint every image choice, at any depth."""
+        n = 0
+        if isinstance(node, dict):
+            if node.get("Provider") == "com.apple.wallpaper.choice.image":
+                node["Configuration"] = cfg
+                return 1
+            for v in node.values():
+                n += retarget(v)
+        elif isinstance(node, list):
+            for v in node:
+                n += retarget(v)
+        return n
+
+    try:
+        idx = plistlib.loads(WALLPAPER_INDEX.read_bytes())
+        count = retarget(idx)
+        WALLPAPER_INDEX.write_bytes(plistlib.dumps(idx, fmt=plistlib.FMT_BINARY))
+        subprocess.run(["killall", "WallpaperAgent"], capture_output=True)
+    except Exception as e:
+        return f"wallpaper: could not write the index ({e}); backup at {bak.name}"
+
+    if count == 0:
+        return "wallpaper: the index had no image entry to repoint"
+    return None
+
+
+# --- applying --------------------------------------------------------------
+
+def osa(script, timeout=10):
+    """AppleScript, never allowed to hang the switcher."""
+    try:
+        return subprocess.run(["osascript", "-e", script],
+                              capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess([], 1, "", "timed out")
+
+
+def run(cmd, timeout=8):
+    """Any helper command: a hung one must not stop the rest of the switch."""
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return subprocess.CompletedProcess([], 1, "", str(e))
+
+
+def pids_of(name):
+    """PIDs whose executable is exactly `name` (case-sensitive).
+
+    Deliberately NOT `pgrep -x`: on macOS pgrep hides its own ancestors, so a
+    switcher run from inside Ghostty cannot see the very Ghostty it needs to
+    signal — the theme then changes everywhere except the terminal you typed
+    the command in. (`pgrep -ax` includes ancestors, but that flag means
+    something else on Linux, so parse ps instead.)
+    """
+    out = run(["ps", "-Ao", "pid=,comm="], timeout=5).stdout
+    pids = []
+    for line in out.splitlines():
+        pid, _, comm = line.strip().partition(" ")
+        if pid.isdigit() and comm.strip().rsplit("/", 1)[-1] == name:
+            pids.append(pid)
+    return pids
+
+
+def running(proc):
+    """Is a process with that exact name alive?"""
+    return bool(pids_of(proc))
+
+
+def apply(name, quiet=False):
+    theme_dir = THEMES / name
+    conf = theme_dir / "colors.toml"
+    if not conf.is_file():
+        sys.exit(f"error: no theme named '{name}'. Try: theme list")
+    c = load(conf)
+
+    GEN.mkdir(parents=True, exist_ok=True)
+    gen_ghostty(c)
+    gen_sketchybar(c)
+    gen_borders(c)
+    gen_herdr(c)
+
+    if CURRENT.is_symlink() or CURRENT.exists():
+        CURRENT.unlink()
+    CURRENT.symlink_to(theme_dir)
+
+    notes = []
+
+    # Ghostty first: it is the most visible surface and the cheapest to poke,
+    # so it must not depend on every other integration finishing. SIGUSR2
+    # reloads the config without stealing focus or needing permissions; the
+    # keystroke is the fallback. Note the process is named "ghostty" in
+    # lowercase, even though System Events sees it as "Ghostty".
+    pids = pids_of("ghostty")
+    diag = [f"ghostty pids={pids!r}"]
+    if pids:
+        for pid in pids:
+            try:
+                os.kill(int(pid), signal.SIGUSR2)
+                diag.append(f"SIGUSR2 -> {pid}: ok")
+            except OSError as e:
+                diag.append(f"SIGUSR2 -> {pid}: {e}")
+                r = osa('tell application "System Events" to tell process '
+                        '"Ghostty" to keystroke "," using '
+                        '{command down, shift down}')
+                if r.returncode:
+                    notes.append("Ghostty: press Cmd+Shift+, to reload")
+                break
+    else:
+        diag.append("no ghostty process")
+
+    # System light/dark mode.
+    dark = "true" if c["appearance"] == "dark" else "false"
+    r = osa('tell application "System Events" to tell appearance preferences '
+            f'to set dark mode to {dark}')
+    if r.returncode:
+        notes.append("light/dark mode: missing Automation permission for System Events")
+
+    # Wallpaper, only if the theme ships one.
+    wp = wallpaper_for(theme_dir)
+    if wp:
+        try:
+            err = set_wallpaper(wp)
+        except Exception as e:                      # never abort the switch
+            err = f"wallpaper: {e}"
+        if err:
+            notes.append(err)
+            diag.append(err)
+
+    if shutil.which("sketchybar") and running("sketchybar"):
+        run(["sketchybar", "--reload"])
+
+    if borders_bin() and BORDERS_RC.is_file():
+        run(["pkill", "-x", "borders"], timeout=5)
+        try:
+            subprocess.Popen(
+                [str(BORDERS_RC)], stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError as e:
+            notes.append(f"borders: {e}")
+
+    # herdr reloads over its socket, without losing the session.
+    if HERDR_CONF.is_file() and running("herdr") and shutil.which("herdr"):
+        r = run(["herdr", "server", "reload-config"])
+        if r.returncode or '"status":"applied"' not in r.stdout:
+            notes.append("herdr: config written, but the reload failed "
+                         "(restart herdr to see it)")
+            diag.append(f"herdr rc={r.returncode}")
+
+    # Ghostty. SIGUSR2 reloads the config without stealing focus or needing
+    # permissions; the keystroke is the fallback. Note the process is named
+    # "ghostty" in lowercase, even though System Events sees it as "Ghostty".
+    try:
+        with (GEN / "last-apply.log").open("a") as f:
+            f.write(f"{time.strftime('%H:%M:%S')} {name}: " + " | ".join(diag) + "\n")
+    except OSError:
+        pass
+
+    if not quiet:
+        print(f"→ {c['name']}  ({c['appearance']}, accent {c['accent']})")
+        for n in notes:
+            print(f"  ! {n}")
+
+
+# --- wiring the apps up ----------------------------------------------------
+
+GHOSTTY_INCLUDE = "config-file = ?{path}"
+SKETCHYBAR_SHIM_BODY = """#!/bin/bash
+# Shim written by `theme` — the colours live in the active omakase theme.
+source "{path}"
+"""
+
+
+def points_here(path, target):
+    """Does `path` already reference `target`, written absolutely or via $HOME/~?"""
+    if not path.is_file():
+        return False
+    body = path.read_text()
+    rel = str(target).replace(str(Path.home()), "", 1)
+    return any(v in body for v in
+               (str(target), "$HOME" + rel, "${HOME}" + rel, "~" + rel))
+
+
+def backup_once(path):
+    """Keep the version of a file we are about to take over.
+
+    Once a .omakase-bak exists it is never overwritten — it is the pre-omakase
+    original. But a second install must not silently discard edits made since
+    then either, so a differing file gets its own timestamped copy.
+    """
+    if not path.exists():
+        return None
+    bak = Path(str(path) + ".omakase-bak")
+    if not bak.exists():
+        shutil.copy2(path, bak)
+        return bak
+    if bak.read_bytes() == path.read_bytes():
+        return bak
+    stamped = Path(f"{path}.omakase-bak.{time.strftime('%Y%m%d-%H%M%S')}")
+    shutil.copy2(path, stamped)
+    return stamped
+
+
+def install():
+    done, todo = [], []
+
+    # Ghostty: colours come from the generated file, included at the end so it
+    # wins over anything set earlier in the user's config.
+    if shutil.which("ghostty") or Path("/Applications/Ghostty.app").exists():
+        line = GHOSTTY_INCLUDE.format(path=GHOSTTY_CONF)
+        GHOSTTY_USER_CONF.parent.mkdir(parents=True, exist_ok=True)
+        body = GHOSTTY_USER_CONF.read_text() if GHOSTTY_USER_CONF.is_file() else ""
+        if points_here(GHOSTTY_USER_CONF, GHOSTTY_CONF):
+            done.append("ghostty: already includes the generated config")
+        else:
+            backup_once(GHOSTTY_USER_CONF)
+            sep = "" if body.endswith("\n") or not body else "\n"
+            GHOSTTY_USER_CONF.write_text(f"{body}{sep}\n# omakase\n{line}\n")
+            done.append(f"ghostty: appended `{line}`")
+        if re.search(r"^\s*(theme|palette|background|foreground)\s*=", body, re.M):
+            todo.append("ghostty: your config still sets colours of its own; "
+                        "remove them or the include may fight with them")
+    else:
+        todo.append("ghostty: not installed, skipped")
+
+    # SketchyBar: colors.sh becomes a shim that sources the generated palette.
+    if shutil.which("sketchybar"):
+        want = SKETCHYBAR_SHIM_BODY.format(path=SKETCHYBAR_COLORS)
+        if points_here(SKETCHYBAR_SHIM, SKETCHYBAR_COLORS):
+            done.append("sketchybar: colors.sh already points here")
+        else:
+            SKETCHYBAR_SHIM.parent.mkdir(parents=True, exist_ok=True)
+            bak = backup_once(SKETCHYBAR_SHIM)
+            SKETCHYBAR_SHIM.write_text(want)
+            SKETCHYBAR_SHIM.chmod(0o755)
+            done.append("sketchybar: colors.sh replaced by a shim" +
+                        (f" (backup at {bak.name})" if bak else ""))
+        todo.append("sketchybar: your sketchybarrc must `source` colors.sh "
+                    "and use $BAR_COLOR, $ACCENT, $FG… (see README)")
+    else:
+        todo.append("sketchybar: not installed, skipped")
+
+    # JankyBorders: bordersrc is generated on every theme change.
+    if borders_bin():
+        done.append(f"borders: will write {BORDERS_RC} on each theme change")
+        todo.append(f"borders: launch it as `{BORDERS_RC}` (absolute path — a "
+                    "window manager has no user PATH), not with inline args")
+    else:
+        todo.append("borders: not installed, skipped")
+
+    if HERDR_CONF.is_file():
+        done.append("herdr: config detected, [theme.custom] will be managed")
+
+    bindir = str(ROOT / "bin")
+    if bindir not in os.environ.get("PATH", "").split(":"):
+        todo.append(f'PATH: add `export PATH="{bindir}:$PATH"` to your shell rc')
+
+    for d in done:
+        print(f"  ✓ {d}")
+    for t in todo:
+        print(f"  → {t}")
+    if not current():
+        print("\nNow pick a theme:  theme list  /  theme <name>")
+
+
+def doctor():
+    print(f"root      {ROOT}")
+    print(f"themes    {len(themes())} installed: {', '.join(themes()) or '(none)'}")
+    print(f"active    {current() or '(none)'}")
+    print()
+    checks = [
+        ("ghostty", bool(shutil.which("ghostty") or
+                         Path("/Applications/Ghostty.app").exists()),
+         points_here(GHOSTTY_USER_CONF, GHOSTTY_CONF)),
+        ("sketchybar", bool(shutil.which("sketchybar")),
+         points_here(SKETCHYBAR_SHIM, SKETCHYBAR_COLORS)),
+        ("borders", bool(borders_bin()), BORDERS_RC.is_file()),
+        ("herdr", bool(shutil.which("herdr")), HERDR_CONF.is_file()),
+    ]
+    for name, installed, wired in checks:
+        if not installed:
+            print(f"  –  {name:<12} not installed")
+        elif wired:
+            print(f"  ✓  {name:<12} wired")
+        else:
+            print(f"  !  {name:<12} installed but not wired — run: theme install")
+    print(f"  {'✓' if WALLPAPER_INDEX.is_file() else '!'}  {'wallpaper':<12} "
+          f"{'WallpaperAgent index found' if WALLPAPER_INDEX.is_file() else 'no index; will fall back to AppleScript'}")
+
+
+def restore(yes=False):
+    pairs = [(Path(str(p) + ".omakase-bak"), p) for p in
+             (WALLPAPER_INDEX, HERDR_CONF, SKETCHYBAR_SHIM, GHOSTTY_USER_CONF)]
+    pairs = [(b, p) for b, p in pairs if b.exists()]
+    if not pairs:
+        print("nothing to restore: no .omakase-bak files found")
+        return
+    for bak, target in pairs:
+        print(f"  {bak} → {target}")
+    if not yes:
+        print("\nre-run with --yes to actually restore")
+        return
+    for bak, target in pairs:
+        shutil.copy2(bak, target)
+    subprocess.run(["killall", "WallpaperAgent"], capture_output=True)
+    print("restored. Wallpaper and app configs are back to their pre-omakase state.")
+
+
+# --- fetching themes -------------------------------------------------------
+
+MAX_BG_BYTES = 12 * 1024 * 1024   # skip the odd 20 MB "test" wallpaper
+MAX_DOWNLOAD = 32 * 1024 * 1024   # nothing a theme ships is legitimately bigger
+
+
+def safe_child(parent, name):
+    """`parent / name`, refusing anything that could escape the directory.
+
+    Names here come from a remote repository listing and from --as, so a value
+    like "../../.zshrc" must never be turned into a write outside themes/.
+    """
+    if (not name or name.startswith(".") or "/" in name or "\\" in name
+            or name in (os.curdir, os.pardir)):
+        sys.exit(f"error: refusing unsafe name {name!r}")
+    child = parent / name
+    if parent.resolve() not in child.resolve().parents:
+        sys.exit(f"error: {name!r} would write outside {parent}")
+    return child
+
+
+class _SafeRedirect(urllib.request.HTTPRedirectHandler):
+    """Never carry credentials across a redirect to another host."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None and (urllib.parse.urlsplit(newurl).hostname
+                                != urllib.parse.urlsplit(req.full_url).hostname):
+            new.remove_header("Authorization")
+        return new
+
+
+OPENER = urllib.request.build_opener(_SafeRedirect)
+
+
+def gh_contents(repo, path, ref):
+    """List a directory in a GitHub repo.
+
+    Note: raw.githubusercontent.com URLs are unreliable for this — the Omarchy
+    repo moved and old raw paths 404 on binaries even while serving text. The
+    contents API gives a download_url that always works.
+    """
+    url = ("https://api.github.com/repos/"
+           f"{urllib.parse.quote(repo)}/contents/{urllib.parse.quote(path)}"
+           f"?ref={urllib.parse.quote(ref)}")
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "omakase-theme-switcher",
+    }
+    # Optional, and only ever sent to the API host: 60 requests/hour without it.
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with OPENER.open(req, timeout=30) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        if e.code == 403:
+            sys.exit("error: GitHub rate limit hit (60 requests/hour without a "
+                     "token). Wait a bit, or set GITHUB_TOKEN.")
+        sys.exit(f"error: GitHub returned {e.code} for {url}")
+    except urllib.error.URLError as e:
+        sys.exit(f"error: could not reach GitHub ({e.reason})")
+
+
+def download(url, dest, limit=MAX_DOWNLOAD):
+    """Fetch one file. No credentials are ever attached here, and the response
+    is capped: `size` in a listing is what the server claims, not what it sends.
+    """
+    if urllib.parse.urlsplit(url).scheme != "https":
+        sys.exit(f"error: refusing non-https download: {url}")
+    req = urllib.request.Request(url, headers={"User-Agent": "omakase-theme-switcher"})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        data = r.read(limit + 1)
+    if len(data) > limit:
+        sys.exit(f"error: {url} exceeds {limit // 1024 // 1024} MB")
+    dest.write_bytes(data)
+
+
+def fetch_backgrounds(repo, ref, base, dest, prefix=""):
+    """Download one backgrounds/ directory. Returns how many images landed."""
+    items = gh_contents(repo, base, ref)
+    if not items:
+        return 0
+    dest.mkdir(parents=True, exist_ok=True)
+    n = 0
+    for it in items:
+        if it["type"] != "file":
+            continue
+        name = it["name"]
+        if Path(name).suffix.lower() not in IMAGE_SUFFIXES:
+            continue
+        if it.get("size", 0) > MAX_BG_BYTES:
+            print(f"    (skipped {name}, {it['size'] // 1024 // 1024} MB)")
+            continue
+        out = safe_child(dest, prefix + name)
+        if out.exists():
+            continue
+        print(f"    {out.name}")
+        download(it["download_url"], out)
+        n += 1
+    return n
+
+
+def fetch(spec, alias=None, want_backgrounds=True):
+    """Install a theme from GitHub.
+
+    `theme fetch osaka-jade`        → themes/osaka-jade in upstream Omarchy
+    `theme fetch mattbbia/pissarro` → a standalone theme repo
+    `theme fetch owner/repo#branch` → ...on a specific branch
+    """
+    if "/" in spec:
+        repo, _, ref = spec.partition("#")
+        ref = ref or "HEAD"
+        base = ""
+        default_name = repo.split("/")[-1].replace("omarchy-", "").replace("-theme", "")
+    else:
+        repo, ref, base = OMARCHY_REPO, OMARCHY_BRANCH, f"themes/{spec}"
+        default_name = spec
+
+    name = alias or default_name
+    dest = safe_child(THEMES, name)
+
+    listing = gh_contents(repo, base, ref)
+    if listing is None:
+        sys.exit(f"error: {repo} has no '{base or '/'}' on {ref}")
+    files = {it["name"]: it for it in listing if it["type"] == "file"}
+    dirs = {it["name"] for it in listing if it["type"] == "dir"}
+    if "colors.toml" not in files:
+        sys.exit(f"error: no colors.toml in {repo}/{base or ''} — "
+                 "is this an Omarchy theme?")
+
+    dest.mkdir(parents=True, exist_ok=True)
+    print(f"  colors.toml")
+    download(files["colors.toml"]["download_url"], dest / "colors.toml")
+    for extra in ("LICENSE", "LICENSE.md", "README.md"):
+        if extra in files:
+            download(files[extra]["download_url"], dest / extra)
+
+    n = 0
+    if want_backgrounds:
+        if "backgrounds" in dirs:
+            n += fetch_backgrounds(repo, ref, f"{base}/backgrounds".lstrip("/"),
+                                   dest / "backgrounds")
+        # Some themes keep a second set; prefix it so both can coexist.
+        if "backgrounds-alt" in dirs:
+            n += fetch_backgrounds(repo, ref, f"{base}/backgrounds-alt".lstrip("/"),
+                                   dest / "backgrounds", prefix="alt-")
+
+    (dest / "source.json").write_text(json.dumps(
+        {"repo": repo, "ref": ref, "path": base}, indent=2) + "\n")
+
+    c = load(dest / "colors.toml")
+    print(f"→ {name}: {c['appearance']}, accent {c['accent']}, "
+          f"{n} wallpaper(s). Apply it with:  theme {name}")
+
+
+def refetch_backgrounds(name):
+    """Re-download the wallpapers of an already-installed theme."""
+    src = safe_child(THEMES, name) / "source.json"
+    if not src.is_file():
+        sys.exit(f"error: theme '{name}' has no source.json — it wasn't fetched "
+                 "from GitHub, so I don't know where its wallpapers live.")
+    s = json.loads(src.read_text())
+    base = s["path"]
+    dest = safe_child(THEMES, name) / "backgrounds"
+    n = fetch_backgrounds(s["repo"], s["ref"], f"{base}/backgrounds".lstrip("/"), dest)
+    n += fetch_backgrounds(s["repo"], s["ref"], f"{base}/backgrounds-alt".lstrip("/"),
+                           dest, prefix="alt-")
+    print(f"→ {name}: {n} new wallpaper(s) in {dest}")
+
+
+# --- swatch & demo ---------------------------------------------------------
+
+def swatch(c=None):
+    """Print the theme's 16 palette entries as truecolor blocks.
+
+    Deliberately NOT the terminal's indexed colours (\033[48;5;N\033m): those
+    repaint themselves the moment the palette reloads, so every swatch already
+    on screen would turn into the newest theme — a demo where nothing appears
+    to change. Absolute RGB keeps each theme's row as printed, so the sequence
+    stays readable in a recording and in a still screenshot.
+    """
+    if c is None:
+        cur = current()
+        if not cur:
+            sys.exit("error: no active theme")
+        c = load(THEMES / cur / "colors.toml")
+    for row in (range(8), range(8, 16)):
+        line = ""
+        for i in row:
+            r, g, b = rgb(c[f"color{i}"])
+            line += f"\033[48;2;{r};{g};{b}m    \033[0m"
+        print(line)
+
+
+def demo(names, hold=4.0, countdown=3, loops=1):
+    """Cycle themes on a timer — meant to be screen-recorded."""
+    names = names or themes()
+    missing = [n for n in names if n not in themes()]
+    if missing:
+        sys.exit(f"error: unknown theme(s): {', '.join(missing)}")
+    for i in range(countdown, 0, -1):
+        print(f"\rrecording in {i}… ", end="", flush=True)
+        time.sleep(1)
+    print("\r" + " " * 24 + "\r", end="", flush=True)
+    try:
+        for _ in range(loops):
+            for n in names:
+                c = load(THEMES / n / "colors.toml")
+                apply(n, quiet=True)
+                print(f"\n  \033[1m{c['name']}\033[0m  ·  {c['appearance']}  ·  {c['accent']}\n")
+                swatch(c)
+                time.sleep(hold)
+    except KeyboardInterrupt:
+        print("\nstopped.")
+
+
+# --- cli -------------------------------------------------------------------
+
+def show():
+    cur = current()
+    for t in themes():
+        print(f"{'*' if t == cur else ' '} {t}")
+
+
+def pop_flag(args, name):
+    if name in args:
+        args.remove(name)
+        return True
+    return False
+
+
+def pop_value(args, name, cast, default):
+    if name in args:
+        i = args.index(name)
+        try:
+            v = cast(args[i + 1])
+        except (IndexError, ValueError):
+            sys.exit(f"usage: {name} <value>")
+        del args[i:i + 2]
+        return v
+    return default
+
+
+def main():
+    args = sys.argv[1:]
+    if not args:
+        show()
+        return
+    cmd = args[0]
+    rest = args[1:]
+
+    if cmd in ("list", "ls"):
+        show()
+    elif cmd == "current":
+        print(current() or "(none)")
+    elif cmd in ("-h", "--help", "help"):
+        print(__doc__.strip())
+    elif cmd == "install":
+        install()
+    elif cmd == "doctor":
+        doctor()
+    elif cmd == "restore":
+        restore(yes=pop_flag(rest, "--yes"))
+    elif cmd == "swatch":
+        swatch()
+    elif cmd == "demo":
+        hold = pop_value(rest, "--hold", float, 4.0)
+        loops = pop_value(rest, "--loops", int, 1)
+        countdown = pop_value(rest, "--countdown", int, 3)
+        demo(rest, hold=hold, countdown=countdown, loops=loops)
+    elif cmd == "fetch":
+        want_bg = not pop_flag(rest, "--no-backgrounds")
+        alias = pop_value(rest, "--as", str, None)
+        if not rest:
+            sys.exit("usage: theme fetch <name|owner/repo> [--as <name>] "
+                     "[--no-backgrounds]")
+        spec = rest[0]
+        if "/" not in spec and (THEMES / spec / "source.json").is_file():
+            refetch_backgrounds(spec)
+        else:
+            fetch(spec, alias=alias, want_backgrounds=want_bg)
+    elif cmd == "reload":
+        cur = current()
+        if not cur:
+            sys.exit("error: no active theme")
+        apply(cur)
+    elif cmd == "next":
+        ts = themes()
+        if not ts:
+            sys.exit("error: no themes installed")
+        cur = current()
+        i = (ts.index(cur) + 1) % len(ts) if cur in ts else 0
+        apply(ts[i])
+    elif cmd == "bg":
+        cur = current()
+        if not cur:
+            sys.exit("error: no active theme")
+        d = THEMES / cur
+        imgs = backgrounds(d)
+        if not imgs:
+            sys.exit(f"theme '{cur}' ships no wallpapers "
+                     f"(try: theme fetch {cur})")
+        active = wallpaper_for(d)
+        if not rest:
+            for i, img in enumerate(imgs, 1):
+                print(f"{'*' if img == active else ' '} {i}. {img.name}")
+            return
+        arg = rest[0]
+        if arg == "next":
+            pick = imgs[(imgs.index(active) + 1) % len(imgs)]
+        elif arg.isdigit() and 1 <= int(arg) <= len(imgs):
+            pick = imgs[int(arg) - 1]
+        else:
+            match = [i for i in imgs if arg.lower() in i.name.lower()]
+            if len(match) != 1:
+                sys.exit(f"'{arg}' does not identify a single wallpaper. "
+                         "Try: theme bg")
+            pick = match[0]
+        GEN.mkdir(parents=True, exist_ok=True)
+        (GEN / f"wallpaper-{cur}.txt").write_text(pick.name)
+        err = set_wallpaper(pick)
+        print(f"→ {pick.name}" + (f"\n  ! {err}" if err else ""))
+    elif cmd == "set":
+        if not rest:
+            sys.exit("usage: theme set <name>")
+        apply(rest[0])
+    else:
+        apply(cmd)
+
+
+if __name__ == "__main__":
+    main()

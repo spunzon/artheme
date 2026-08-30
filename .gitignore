@@ -1,0 +1,13 @@
+# Everything the switcher produces
+generated/
+current
+
+# Wallpapers are not redistributed here — `theme fetch <name>` pulls them
+# from each theme's own repository. See CREDITS.md.
+themes/*/backgrounds/
+
+.DS_Store
+
+# Python bytecode from importing bin/theme as a module
+__pycache__/
+*.pyc
