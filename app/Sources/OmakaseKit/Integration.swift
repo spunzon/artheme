@@ -1,5 +1,34 @@
 import Foundation
 
+/// The machine an integration writes to.
+///
+/// Everything that touches the file system goes through here, so tests can
+/// point a whole run at a throwaway home directory instead of the real one —
+/// and `appliesLive` keeps them from signalling processes or reloading bars
+/// that belong to the person running the tests.
+public struct Machine: Sendable {
+    public let home: URL
+    public let appliesLive: Bool
+
+    public init(home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                appliesLive: Bool = true) {
+        self.home = home
+        self.appliesLive = appliesLive
+    }
+
+    public static let current = Machine()
+
+    /// `~/.config/<path>`
+    public func config(_ path: String) -> URL {
+        home.appendingPathComponent(".config").appendingPathComponent(path)
+    }
+
+    /// `~/Library/<path>`
+    public func library(_ path: String) -> URL {
+        home.appendingPathComponent("Library").appendingPathComponent(path)
+    }
+}
+
 /// One application omakase can theme.
 ///
 /// Every integration is optional and self-detecting: whatever is not installed
@@ -10,7 +39,7 @@ public protocol Integration: Sendable {
     /// Is the application present on this machine?
     var isInstalled: Bool { get }
     /// Has omakase been wired into its configuration?
-    var isWired: Bool { get }
+    func isWired(_ library: Library) -> Bool
     /// Take over the app's colours. Idempotent, keeps a backup.
     func install(_ library: Library) throws
     /// Apply a theme. Returns a note worth showing the user, or nil.
@@ -20,7 +49,7 @@ public protocol Integration: Sendable {
 
 public extension Integration {
     func install(_ library: Library) throws {}
-    var isWired: Bool { true }
+    func isWired(_ library: Library) -> Bool { true }
 }
 
 // MARK: - Shared helpers

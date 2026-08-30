@@ -50,9 +50,10 @@ case "doctor":
     print("themes    \(themes.count) installed")
     print("active    \(library.current?.slug ?? "(none)")\n")
     for i in Switcher.all {
-        let mark = !i.isInstalled ? "–" : (i.isWired ? "✓" : "!")
+        let wired = i.isWired(library)
+        let mark = !i.isInstalled ? "–" : (wired ? "✓" : "!")
         let state = !i.isInstalled ? "not installed"
-                                   : (i.isWired ? "wired" : "installed but not wired")
+                                   : (wired ? "wired" : "installed but not wired")
         print("  \(mark)  \(i.name.padding(toLength: 18, withPad: " ", startingAt: 0)) \(state)")
     }
 case "seed":

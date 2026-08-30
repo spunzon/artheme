@@ -4,21 +4,22 @@ import Foundation
 
 public struct GhosttyIntegration: Integration {
     public let id = "ghostty", name = "Ghostty"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
-    var userConfig: URL { Files.config("ghostty/config") }
+    var userConfig: URL { machine.config("ghostty/config") }
     func generated(_ l: Library) -> URL { l.generated.appendingPathComponent("ghostty.conf") }
 
     public var isInstalled: Bool {
         Files.exists(URL(fileURLWithPath: "/Applications/Ghostty.app"))
             || Shell.which("ghostty") != nil
     }
-    public var isWired: Bool {
-        Files.references(Library().generated.appendingPathComponent("ghostty.conf"), in: userConfig)
+    public func isWired(_ l: Library) -> Bool {
+        Files.references(l.generated.appendingPathComponent("ghostty.conf"), in: userConfig)
     }
 
     public func install(_ l: Library) throws {
-        guard isInstalled, !isWired else { return }
+        guard isInstalled, !isWired(l) else { return }
         Files.backup(userConfig)
         let body = Files.read(userConfig) ?? ""
         let sep = body.isEmpty || body.hasSuffix("\n") ? "" : "\n"
@@ -42,9 +43,8 @@ public struct GhosttyIntegration: Integration {
 
         // SIGUSR2 reloads every open surface without stealing focus or needing
         // any permission. The process is "ghostty", lowercase.
-        let pids = Shell.pids(of: "ghostty")
-        guard !pids.isEmpty else { return nil }
-        for pid in pids { kill(pid, SIGUSR2) }
+        guard machine.appliesLive else { return nil }
+        for pid in Shell.pids(of: "ghostty") { kill(pid, SIGUSR2) }
         return nil
     }
 }
@@ -53,18 +53,19 @@ public struct GhosttyIntegration: Integration {
 
 public struct SketchyBarIntegration: Integration {
     public let id = "sketchybar", name = "SketchyBar"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
-    var shim: URL { Files.config("sketchybar/colors.sh") }
+    var shim: URL { machine.config("sketchybar/colors.sh") }
     func generated(_ l: Library) -> URL { l.generated.appendingPathComponent("sketchybar-colors.sh") }
 
     public var isInstalled: Bool { Shell.which("sketchybar") != nil }
-    public var isWired: Bool {
-        Files.references(Library().generated.appendingPathComponent("sketchybar-colors.sh"), in: shim)
+    public func isWired(_ l: Library) -> Bool {
+        Files.references(l.generated.appendingPathComponent("sketchybar-colors.sh"), in: shim)
     }
 
     public func install(_ l: Library) throws {
-        guard isInstalled, !isWired else { return }
+        guard isInstalled, !isWired(l) else { return }
         Files.backup(shim)
         try Files.write("""
         #!/bin/bash
@@ -116,7 +117,7 @@ public struct SketchyBarIntegration: Integration {
 
         """, to: generated(l))
 
-        if let bin = Shell.which("sketchybar"), Shell.isRunning("sketchybar") {
+        if machine.appliesLive, let bin = Shell.which("sketchybar"), Shell.isRunning("sketchybar") {
             Shell.run(bin, ["--reload"])
         }
         return nil
@@ -127,11 +128,12 @@ public struct SketchyBarIntegration: Integration {
 
 public struct BordersIntegration: Integration {
     public let id = "borders", name = "JankyBorders"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
-    var rc: URL { Files.config("borders/bordersrc") }
+    var rc: URL { machine.config("borders/bordersrc") }
     public var isInstalled: Bool { Shell.which("borders") != nil }
-    public var isWired: Bool { Files.exists(rc) }
+    public func isWired(_ l: Library) -> Bool { Files.exists(rc) }
 
     public func apply(_ theme: Theme, _ l: Library) throws -> String? {
         guard let bin = Shell.which("borders") else { return nil }
@@ -150,6 +152,7 @@ public struct BordersIntegration: Integration {
 
         """, to: rc, executable: true)
 
+        guard machine.appliesLive else { return nil }
         Shell.run("/usr/bin/pkill", ["-x", "borders"], timeout: 5)
         let p = Process()
         p.executableURL = rc
@@ -162,10 +165,12 @@ public struct BordersIntegration: Integration {
 
 public struct AppearanceIntegration: Integration {
     public let id = "appearance", name = "Light/dark mode"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
     public var isInstalled: Bool { true }
 
     public func apply(_ theme: Theme, _ l: Library) throws -> String? {
+        guard machine.appliesLive else { return nil }
         let dark = theme.appearance == .dark
         let rc = Shell.osascript("""
         tell application "System Events" to tell appearance preferences \
@@ -179,18 +184,18 @@ public struct AppearanceIntegration: Integration {
 
 public struct WallpaperIntegration: Integration {
     public let id = "wallpaper", name = "Desktop wallpaper"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
     public var isInstalled: Bool { true }
 
     var index: URL {
-        Files.home.appendingPathComponent(
-            "Library/Application Support/com.apple.wallpaper/Store/Index.plist")
+        machine.library("Application Support/com.apple.wallpaper/Store/Index.plist")
     }
 
     public func apply(_ theme: Theme, _ l: Library) throws -> String? {
         // A theme with no wallpapers leaves the desktop alone, on purpose: a
         // dynamic system wallpaper has no file path and cannot be restored.
-        guard let image = l.wallpaper(for: theme) else { return nil }
+        guard machine.appliesLive, let image = l.wallpaper(for: theme) else { return nil }
         return set(image)
     }
 

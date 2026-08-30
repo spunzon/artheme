@@ -4,16 +4,17 @@ import Foundation
 
 public struct BtopIntegration: Integration {
     public let id = "btop", name = "btop"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
-    var themeFile: URL { Files.config("btop/themes/omakase.theme") }
-    var conf: URL { Files.config("btop/btop.conf") }
+    var themeFile: URL { machine.config("btop/themes/omakase.theme") }
+    var conf: URL { machine.config("btop/btop.conf") }
 
     public var isInstalled: Bool { Shell.which("btop") != nil }
-    public var isWired: Bool { (Files.read(conf) ?? "").contains("\"omakase\"") }
+    public func isWired(_ l: Library) -> Bool { (Files.read(conf) ?? "").contains("\"omakase\"") }
 
     public func install(_ l: Library) throws {
-        guard isInstalled, !isWired else { return }
+        guard isInstalled, !isWired(l) else { return }
         Files.backup(conf)
         var body = Files.read(conf) ?? ""
         // btop.conf is plain key = "value": replace the line if it is there,
@@ -87,24 +88,25 @@ public struct BtopIntegration: Integration {
 
 public struct TmuxIntegration: Integration {
     public let id = "tmux", name = "tmux"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
     func generated(_ l: Library) -> URL { l.generated.appendingPathComponent("tmux.conf") }
     /// tmux reads ~/.config/tmux/tmux.conf on 3.1+, and ~/.tmux.conf before that.
     var userConfig: URL {
-        let xdg = Files.config("tmux/tmux.conf")
+        let xdg = machine.config("tmux/tmux.conf")
         if Files.exists(xdg) { return xdg }
-        let legacy = Files.home.appendingPathComponent(".tmux.conf")
+        let legacy = machine.home.appendingPathComponent(".tmux.conf")
         return Files.exists(legacy) ? legacy : xdg
     }
 
     public var isInstalled: Bool { Shell.which("tmux") != nil }
-    public var isWired: Bool {
-        Files.references(Library().generated.appendingPathComponent("tmux.conf"), in: userConfig)
+    public func isWired(_ l: Library) -> Bool {
+        Files.references(l.generated.appendingPathComponent("tmux.conf"), in: userConfig)
     }
 
     public func install(_ l: Library) throws {
-        guard isInstalled, !isWired else { return }
+        guard isInstalled, !isWired(l) else { return }
         Files.backup(userConfig)
         let body = Files.read(userConfig) ?? ""
         let sep = body.isEmpty || body.hasSuffix("\n") ? "" : "\n"
@@ -136,7 +138,7 @@ public struct TmuxIntegration: Integration {
         """, to: generated(l))
 
         // Live reload, if a server is running: the panes repaint immediately.
-        if let bin = Shell.which("tmux"), Shell.isRunning("tmux") {
+        if machine.appliesLive, let bin = Shell.which("tmux"), Shell.isRunning("tmux") {
             Shell.run(bin, ["source-file", generated(l).path], timeout: 5)
         }
         return nil

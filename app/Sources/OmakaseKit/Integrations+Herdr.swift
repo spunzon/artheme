@@ -9,12 +9,13 @@ import Foundation
 /// — is preserved.
 public struct HerdrIntegration: Integration {
     public let id = "herdr", name = "herdr"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
-    var config: URL { Files.config("herdr/config.toml") }
+    var config: URL { machine.config("herdr/config.toml") }
 
     public var isInstalled: Bool { Shell.which("herdr") != nil || Files.exists(config) }
-    public var isWired: Bool { (Files.read(config) ?? "").contains("[theme.custom]") }
+    public func isWired(_ l: Library) -> Bool { (Files.read(config) ?? "").contains("[theme.custom]") }
 
     public func apply(_ theme: Theme, _ l: Library) throws -> String? {
         guard let original = Files.read(config) else { return nil }
@@ -71,7 +72,7 @@ public struct HerdrIntegration: Integration {
         try Files.write(out.joined(separator: "\n") + "\n", to: config)
 
         // Reloads over its socket, without losing the session.
-        if let bin = Shell.which("herdr"), Shell.isRunning("herdr") {
+        if machine.appliesLive, let bin = Shell.which("herdr"), Shell.isRunning("herdr") {
             let r = Shell.run(bin, ["server", "reload-config"])
             if r.status != 0 || !r.out.contains("\"status\":\"applied\"") {
                 return "herdr: config written, but the reload failed (restart herdr to see it)"

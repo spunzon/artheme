@@ -5,29 +5,36 @@ public struct Switcher: Sendable {
     public let library: Library
     public let integrations: [any Integration]
 
-    public init(library: Library = Library(), integrations: [any Integration]? = nil) {
+    public init(library: Library = Library(), machine: Machine = .current,
+                integrations: [any Integration]? = nil) {
         self.library = library
-        self.integrations = integrations ?? Switcher.all
+        self.integrations = integrations ?? Switcher.all(machine: machine)
     }
 
     /// Ghostty comes first on purpose: it is the surface the user is looking at
     /// and the cheapest to poke, so it must not wait behind the wallpaper or a
     /// helper that might hang.
-    public static var all: [any Integration] {
+    public static var all: [any Integration] { all() }
+
+    public static func all(machine: Machine = .current) -> [any Integration] {
         [
             // Terminals first: they are what the user is looking at.
-            GhosttyIntegration(), KittyIntegration(), AlacrittyIntegration(),
-            WezTermIntegration(), ITerm2Integration(),
+            GhosttyIntegration(machine: machine), KittyIntegration(machine: machine), AlacrittyIntegration(machine: machine),
+            WezTermIntegration(machine: machine), ITerm2Integration(machine: machine),
             // Desktop furniture.
-            SketchyBarIntegration(), BordersIntegration(), HerdrIntegration(),
-            AppearanceIntegration(), WallpaperIntegration(),
+            SketchyBarIntegration(machine: machine), BordersIntegration(machine: machine), HerdrIntegration(machine: machine),
+            AppearanceIntegration(machine: machine), WallpaperIntegration(machine: machine),
             // Editors and the rest.
-            VSCodeIntegration(), NeovimIntegration(), ZedIntegration(),
-            BtopIntegration(), TmuxIntegration(),
+            VSCodeIntegration(machine: machine), NeovimIntegration(machine: machine), ZedIntegration(machine: machine),
+            BtopIntegration(machine: machine), TmuxIntegration(machine: machine),
         ]
     }
 
     public var installed: [any Integration] { integrations.filter(\.isInstalled) }
+
+    public func isWired(_ integration: any Integration) -> Bool {
+        integration.isWired(library)
+    }
 
     @discardableResult
     public func apply(_ theme: Theme) throws -> [String] {

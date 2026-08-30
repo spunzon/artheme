@@ -9,10 +9,11 @@ import Foundation
 /// never installs anything behind the user's back.
 public struct VSCodeIntegration: Integration {
     public let id = "vscode", name = "Visual Studio Code"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
     var extensionDir: URL {
-        Files.home.appendingPathComponent(".vscode/extensions/omakase-theme")
+        machine.home.appendingPathComponent(".vscode/extensions/omakase-theme")
     }
     var themeFile: URL { extensionDir.appendingPathComponent("themes/omakase-color-theme.json") }
 
@@ -20,9 +21,11 @@ public struct VSCodeIntegration: Integration {
         Files.exists(URL(fileURLWithPath: "/Applications/Visual Studio Code.app"))
             || Shell.which("code") != nil
     }
-    public var isWired: Bool { Files.exists(themeFile) }
+    public func isWired(_ l: Library) -> Bool { Files.exists(themeFile) }
 
     public func apply(_ theme: Theme, _ l: Library) throws -> String? {
+        // Only worth saying the first time: after that the user has picked it.
+        let firstTime = !Files.exists(themeFile)
         let bg = theme.background, fg = theme.foreground, accent = theme.accent
         let dim = bg.mixed(with: fg, 0.55)
         let panel = bg.mixed(with: fg, 0.06)
@@ -91,7 +94,9 @@ public struct VSCodeIntegration: Integration {
             .write(to: themeFile)
 
         // VS Code loads a colour theme once per window.
-        return "VS Code: pick “Omakase” once (⇧⌘P → Color Theme); reload the window to see later switches"
+        return firstTime
+            ? "VS Code: pick “Omakase” once (⇧⌘P → Color Theme), then reload the window after a switch"
+            : nil
     }
 }
 
@@ -101,14 +106,15 @@ public struct VSCodeIntegration: Integration {
 /// Nothing in the user's init is touched: they run `:colorscheme omakase`.
 public struct NeovimIntegration: Integration {
     public let id = "neovim", name = "Neovim"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
-    var colorscheme: URL { Files.config("nvim/colors/omakase.lua") }
+    var colorscheme: URL { machine.config("nvim/colors/omakase.lua") }
 
     public var isInstalled: Bool {
-        Shell.which("nvim") != nil || Files.exists(Files.config("nvim"))
+        Shell.which("nvim") != nil || Files.exists(machine.config("nvim"))
     }
-    public var isWired: Bool { Files.exists(colorscheme) }
+    public func isWired(_ l: Library) -> Bool { Files.exists(colorscheme) }
 
     public func apply(_ theme: Theme, _ l: Library) throws -> String? {
         let bg = theme.background, fg = theme.foreground
@@ -166,15 +172,16 @@ public struct NeovimIntegration: Integration {
 
 public struct ZedIntegration: Integration {
     public let id = "zed", name = "Zed"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
-    var themeFile: URL { Files.config("zed/themes/omakase.json") }
+    var themeFile: URL { machine.config("zed/themes/omakase.json") }
 
     public var isInstalled: Bool {
         Files.exists(URL(fileURLWithPath: "/Applications/Zed.app"))
-            || Shell.which("zed") != nil || Files.exists(Files.config("zed"))
+            || Shell.which("zed") != nil || Files.exists(machine.config("zed"))
     }
-    public var isWired: Bool { Files.exists(themeFile) }
+    public func isWired(_ l: Library) -> Bool { Files.exists(themeFile) }
 
     public func apply(_ theme: Theme, _ l: Library) throws -> String? {
         let bg = theme.background, fg = theme.foreground, p = theme.palette

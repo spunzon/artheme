@@ -207,8 +207,14 @@ from a stranger's repository, and `install` still edits your app configs. Read
 `bin/theme` before trusting it — it is one file.
 
 ```bash
-python3 tests/test_theme.py    # the checks that must never regress
+python3 tests/test_theme.py          # the Python CLI
+cd app && swift run OmakaseTests     # the Swift core and all 15 integrations
 ```
+
+Integrations write through an injectable `Machine`, so the tests point a whole
+run at a throwaway home directory and assert on what lands there — including
+that a theme with hostile free text produces no file containing `$(` or a
+backtick.
 
 ## What it writes on your machine
 

@@ -7,21 +7,21 @@ import Foundation
 /// the Omakase profile once; after that every switch follows it.
 public struct ITerm2Integration: Integration {
     public let id = "iterm2", name = "iTerm2"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
     /// Stable so we keep updating the same profile instead of piling up new ones.
     static let guid = "4F0F2A57-0F3A-4B5C-9B0C-0E1D2C3B4A59"
 
     var profile: URL {
-        Files.home.appendingPathComponent(
-            "Library/Application Support/iTerm2/DynamicProfiles/omakase.json")
+        machine.library("Application Support/iTerm2/DynamicProfiles/omakase.json")
     }
 
     public var isInstalled: Bool {
         Files.exists(URL(fileURLWithPath: "/Applications/iTerm.app"))
-            || Files.exists(Files.home.appendingPathComponent("Applications/iTerm.app"))
+            || Files.exists(machine.home.appendingPathComponent("Applications/iTerm.app"))
     }
-    public var isWired: Bool { Files.exists(profile) }
+    public func isWired(_ l: Library) -> Bool { Files.exists(profile) }
 
     public func apply(_ theme: Theme, _ l: Library) throws -> String? {
         func component(_ c: Color) -> [String: Any] {
@@ -57,17 +57,18 @@ public struct ITerm2Integration: Integration {
 
 public struct AlacrittyIntegration: Integration {
     public let id = "alacritty", name = "Alacritty"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
-    var userConfig: URL { Files.config("alacritty/alacritty.toml") }
+    var userConfig: URL { machine.config("alacritty/alacritty.toml") }
     func generated(_ l: Library) -> URL { l.generated.appendingPathComponent("alacritty.toml") }
 
     public var isInstalled: Bool {
         Shell.which("alacritty") != nil
             || Files.exists(URL(fileURLWithPath: "/Applications/Alacritty.app"))
     }
-    public var isWired: Bool {
-        Files.references(Library().generated.appendingPathComponent("alacritty.toml"),
+    public func isWired(_ l: Library) -> Bool {
+        Files.references(l.generated.appendingPathComponent("alacritty.toml"),
                          in: userConfig)
     }
 
@@ -83,7 +84,7 @@ public struct AlacrittyIntegration: Integration {
     }
 
     public func install(_ l: Library) throws {
-        guard isInstalled, !isWired else { return }
+        guard isInstalled, !isWired(l) else { return }
         Files.backup(userConfig)
         let body = Files.read(userConfig) ?? ""
         let line = usesGeneralSection
@@ -131,21 +132,22 @@ public struct AlacrittyIntegration: Integration {
 
 public struct KittyIntegration: Integration {
     public let id = "kitty", name = "kitty"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
-    var userConfig: URL { Files.config("kitty/kitty.conf") }
+    var userConfig: URL { machine.config("kitty/kitty.conf") }
     func generated(_ l: Library) -> URL { l.generated.appendingPathComponent("kitty.conf") }
 
     public var isInstalled: Bool {
         Shell.which("kitty") != nil
             || Files.exists(URL(fileURLWithPath: "/Applications/kitty.app"))
     }
-    public var isWired: Bool {
-        Files.references(Library().generated.appendingPathComponent("kitty.conf"), in: userConfig)
+    public func isWired(_ l: Library) -> Bool {
+        Files.references(l.generated.appendingPathComponent("kitty.conf"), in: userConfig)
     }
 
     public func install(_ l: Library) throws {
-        guard isInstalled, !isWired else { return }
+        guard isInstalled, !isWired(l) else { return }
         Files.backup(userConfig)
         let body = Files.read(userConfig) ?? ""
         let sep = body.isEmpty || body.hasSuffix("\n") ? "" : "\n"
@@ -165,7 +167,9 @@ public struct KittyIntegration: Integration {
         try Files.write(lines.joined(separator: "\n") + "\n", to: generated(l))
 
         // Same trick as Ghostty: SIGUSR1 reloads kitty's config in place.
-        for pid in Shell.pids(of: "kitty") { kill(pid, SIGUSR1) }
+        if machine.appliesLive {
+            for pid in Shell.pids(of: "kitty") { kill(pid, SIGUSR1) }
+        }
         return nil
     }
 }
@@ -174,16 +178,17 @@ public struct KittyIntegration: Integration {
 
 public struct WezTermIntegration: Integration {
     public let id = "wezterm", name = "WezTerm"
-    public init() {}
+    public let machine: Machine
+    public init(machine: Machine = .current) { self.machine = machine }
 
-    var scheme: URL { Files.config("wezterm/colors/omakase.toml") }
-    var userConfig: URL { Files.config("wezterm/wezterm.lua") }
+    var scheme: URL { machine.config("wezterm/colors/omakase.toml") }
+    var userConfig: URL { machine.config("wezterm/wezterm.lua") }
 
     public var isInstalled: Bool {
         Shell.which("wezterm") != nil
             || Files.exists(URL(fileURLWithPath: "/Applications/WezTerm.app"))
     }
-    public var isWired: Bool {
+    public func isWired(_ l: Library) -> Bool {
         (Files.read(userConfig) ?? "").contains("Omakase")
     }
 
@@ -210,7 +215,7 @@ public struct WezTermIntegration: Integration {
 
         """, to: scheme)
 
-        return isWired ? nil
+        return isWired(l) ? nil
             : "WezTerm: add `config.color_scheme = 'Omakase'` to wezterm.lua"
     }
 }
