@@ -51,8 +51,11 @@ Download `Omakase.app`, drag it to Applications, open it. It is not notarised
 yet, so the first time macOS will say the developer cannot be verified: go to
 **System Settings → Privacy & Security** and press **Open Anyway**.
 
-It ships with 24 themes and copies them into `~/.config/omakase/themes` the
-first time it runs. Nothing else is required — no Python, no Homebrew, no
+It ships with 24 themes — their colours and a 35 KB cover each — and copies
+them into `~/.config/omakase/themes` the first time it runs. Wallpapers are not
+included: the app fetches the ones belonging to a theme in the background the
+first time you apply it, and a theme with no picture at all gets a cover drawn
+from its own palette. Nothing else is required — no Python, no Homebrew, no
 runtime of any kind.
 
 Then, once:

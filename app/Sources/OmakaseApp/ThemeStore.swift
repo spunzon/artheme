@@ -9,6 +9,7 @@ final class ThemeStore: ObservableObject {
     @Published private(set) var themes: [Theme] = []
     @Published private(set) var currentSlug: String?
     @Published private(set) var busySlug: String?
+    @Published private(set) var fetching: String?
     @Published var notes: [String] = []
 
     private let library = Library()
@@ -44,6 +45,30 @@ final class ThemeStore: ObservableObject {
             notes = result
             currentSlug = theme.slug
             busySlug = nil
+            fetchWallpapersIfMissing(theme)
+        }
+    }
+
+    /// Wallpapers are not shipped with the app — 100 MB of other people's work
+    /// — so the first time a theme is actually applied its pictures are pulled
+    /// in the background and the desktop updates when they land.
+    private func fetchWallpapersIfMissing(_ theme: Theme) {
+        let source = theme.directory.appendingPathComponent("source.json")
+        guard theme.wallpapers.isEmpty, FileManager.default.fileExists(atPath: source.path)
+        else { return }
+        fetching = theme.slug
+        Task { [library] in
+            let landed: Int = await Task.detached(priority: .background) {
+                (try? Fetcher(library: library).refetchWallpapers(theme.slug))?.wallpapers ?? 0
+            }.value
+            if landed > 0, let updated = try? library.theme(named: theme.slug),
+               let image = library.wallpaper(for: updated) {
+                await Task.detached(priority: .userInitiated) {
+                    WallpaperIntegration().set(image)
+                }.value
+            }
+            fetching = nil
+            reload()
         }
     }
 

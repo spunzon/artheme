@@ -40,7 +40,8 @@ mkdir -p "$APP/Contents/Resources/Themes"
 for d in ../themes/*/; do
   [ -f "$d/colors.toml" ] || continue
   mkdir -p "$APP/Contents/Resources/Themes/$(basename "$d")"
-  cp "$d"/*.toml "$d"/*.json "$APP/Contents/Resources/Themes/$(basename "$d")/" 2>/dev/null || true
+  cp "$d"/*.toml "$d"/*.json "$d"/preview.jpg \
+     "$APP/Contents/Resources/Themes/$(basename "$d")/" 2>/dev/null || true
 done
 [ -f Resources/Omakase.icns ] && cp Resources/Omakase.icns "$APP/Contents/Resources/"
 

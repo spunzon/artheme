@@ -16,7 +16,7 @@ struct ThemeCard: View {
     let isBusy: Bool
     @State private var hovering = false
 
-    private var wallpaper: URL? { theme.wallpapers.first }
+    private var cover: URL? { theme.cover }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,21 +41,10 @@ struct ThemeCard: View {
 
     private var preview: some View {
         ZStack {
-            if let wallpaper, let image = Thumbnail.load(wallpaper) {
+            if let cover, let image = Thumbnail.load(cover) {
                 Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
             } else {
-                // No wallpaper: show the palette itself rather than an empty box.
-                theme.background.swiftUI
-                VStack(spacing: 4) {
-                    ForEach(0..<2) { row in
-                        HStack(spacing: 4) {
-                            ForEach(0..<8) { i in
-                                theme.palette[row * 8 + i].swiftUI
-                                    .frame(width: 14, height: 14).cornerRadius(3)
-                            }
-                        }
-                    }
-                }
+                GeneratedCover(theme: theme)
             }
             if isBusy {
                 Rectangle().fill(.black.opacity(0.35))
@@ -86,5 +75,71 @@ struct ThemeCard: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
+    }
+}
+
+
+/// A cover drawn from the theme itself, for themes that ship no picture.
+///
+/// A miniature of the desktop the theme produces — bar, window, prompt, accent
+/// — which says more about what you are about to apply than a photograph does,
+/// and costs nothing to ship.
+struct GeneratedCover: View {
+    let theme: Theme
+
+    private var panel: OmakaseKit.Color { theme.background.mixed(with: theme.foreground, 0.08) }
+    private var dim: OmakaseKit.Color { theme.background.mixed(with: theme.foreground, 0.45) }
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                theme.background.swiftUI
+                VStack(spacing: 0) {
+                    bar
+                    Spacer(minLength: 0)
+                    window(width: geo.size.width)
+                }
+            }
+        }
+    }
+
+    private var bar: some View {
+        HStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 2).fill(theme.accent.swiftUI)
+                .frame(width: 14, height: 7)
+            ForEach(1..<4) { i in
+                RoundedRectangle(cornerRadius: 2).fill(dim.swiftUI)
+                    .frame(width: 9, height: 7).opacity(Double(4 - i) / 4 + 0.3)
+            }
+            Spacer()
+            ForEach([theme.palette[2], theme.palette[3], theme.palette[4]], id: \.hex) { c in
+                Circle().fill(c.swiftUI).frame(width: 5, height: 5)
+            }
+        }
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .background(panel.swiftUI)
+    }
+
+    private func window(width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 4) {
+                Circle().fill(theme.palette[1].swiftUI).frame(width: 5, height: 5)
+                Circle().fill(theme.palette[3].swiftUI).frame(width: 5, height: 5)
+                Circle().fill(theme.palette[2].swiftUI).frame(width: 5, height: 5)
+            }
+            ForEach([0.55, 0.8, 0.35], id: \.self) { factor in
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 1.5).fill(theme.accent.swiftUI)
+                        .frame(width: 8, height: 4)
+                    RoundedRectangle(cornerRadius: 1.5).fill(theme.foreground.swiftUI)
+                        .frame(width: (width - 60) * factor, height: 4).opacity(0.75)
+                }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(panel.swiftUI)
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .padding(.horizontal, 10).padding(.bottom, 10)
     }
 }

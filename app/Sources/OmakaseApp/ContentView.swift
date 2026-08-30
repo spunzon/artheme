@@ -102,6 +102,11 @@ struct ContentView: View {
             } else {
                 Text("No theme applied").font(.caption).foregroundStyle(.secondary)
             }
+            if let fetching = store.fetching {
+                ProgressView().controlSize(.small).scaleEffect(0.7)
+                Text("fetching \(fetching) wallpapers…")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Spacer()
             if store.wallpapers.count > 1 {
                 Text("Wallpaper").font(.caption).foregroundStyle(.secondary)

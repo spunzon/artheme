@@ -133,9 +133,20 @@ public struct Theme: Identifiable, Sendable {
                     .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
-    /// Omarchy themes ship a preview.png; the grid uses it when present.
+    /// The theme's own cover image, if it has one.
+    ///
+    /// Omarchy themes publish a preview.png to show themselves off; omakase
+    /// ships a 600px jpeg of it so the grid is full the moment the app opens,
+    /// without carrying 100 MB of wallpapers. Themes with neither fall back to
+    /// a cover drawn from their palette.
     public var preview: URL? {
-        let p = directory.appendingPathComponent("preview.png")
-        return FileManager.default.fileExists(atPath: p.path) ? p : nil
+        for name in ["preview.jpg", "preview.png"] {
+            let p = directory.appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: p.path) { return p }
+        }
+        return nil
     }
+
+    /// The picture a card should show: its cover, or its first wallpaper.
+    public var cover: URL? { preview ?? wallpapers.first }
 }

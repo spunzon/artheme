@@ -34,6 +34,11 @@ func apply(_ name: String) {
         let notes = try switcher.apply(theme)
         print("→ \(theme.name)  (\(theme.appearance.rawValue), accent \(theme.accent.hex))")
         for n in notes { print("  ! \(n)") }
+        // The CLI never downloads behind your back; it just says how.
+        if theme.wallpapers.isEmpty,
+           Files.exists(theme.directory.appendingPathComponent("source.json")) {
+            print("  · no wallpapers yet — get them with:  omakase fetch \(theme.slug)")
+        }
     } catch { fail(error.localizedDescription) }
 }
 
