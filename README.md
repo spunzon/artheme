@@ -17,17 +17,33 @@ format is, so most Omarchy themes work here unmodified.
 
 ## What changes when you switch
 
-| Target | How |
-|---|---|
-| **Ghostty** | Generates `generated/ghostty.conf`; your `~/.config/ghostty/config` just includes it. Reloaded with `SIGUSR2`. |
-| **SketchyBar** | Generates `generated/sketchybar-colors.sh`; your `colors.sh` is a shim that sources it. Then `sketchybar --reload`. |
-| **JankyBorders** | Generates `~/.config/borders/bordersrc` with the theme's accent, then restarts `borders`. |
-| **Wallpaper** | Repoints every Space and display (see [Gotchas](#gotchas)). Only if the theme ships one. |
-| **Light/dark mode** | System Events, following the theme's `appearance`. |
-| **herdr** | Rewrites its `[theme.custom]` block and reloads over its socket. |
+Every integration is optional and auto-detected: whatever you do not have is
+skipped. `omakase doctor` says what it found.
 
-Every integration is optional and auto-detected: whatever you don't have
-installed is skipped. `theme doctor` tells you what it found.
+| App | How | Live? |
+|---|---|---|
+| **Ghostty** | generated config, included from yours | yes, `SIGUSR2` |
+| **kitty** | generated config, `include`d from yours | yes, `SIGUSR1` |
+| **Alacritty** | generated toml, `import`ed from yours | yes, it watches the file |
+| **WezTerm** | a colour scheme in `colors/omakase.toml` | yes, it watches the directory |
+| **iTerm2** | a Dynamic Profile named Omakase | yes, once you pick the profile |
+| **SketchyBar** | generated palette, `source`d from `colors.sh` | yes, `--reload` |
+| **JankyBorders** | generated `bordersrc`, process restarted | yes |
+| **herdr** | its `[theme.custom]` block, rewritten surgically | yes, reloads over its socket |
+| **Wallpaper** | every Space and display repointed | yes |
+| **Light/dark mode** | the system setting follows the theme | yes |
+| **VS Code** | a local theme extension | pick it once, reload the window |
+| **Neovim** | `~/.config/nvim/colors/omakase.lua` | `:colorscheme omakase` |
+| **Zed** | `~/.config/zed/themes/omakase.json` | pick it once |
+| **btop** | `~/.config/btop/themes/omakase.theme` | on next start |
+| **tmux** | generated conf, `source-file`d from yours | yes, sourced live |
+
+Colours are derived from the theme's own palette, not copied from files a theme
+may or may not ship — so all of this works with any Omarchy theme, including the
+ones whose repositories carry nothing but a `colors.toml`.
+
+Chromium is deliberately absent: Omarchy themes it through a Linux-only flag
+that has no macOS equivalent.
 
 ## Install
 

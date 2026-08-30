@@ -14,8 +14,17 @@ public struct Switcher: Sendable {
     /// and the cheapest to poke, so it must not wait behind the wallpaper or a
     /// helper that might hang.
     public static var all: [any Integration] {
-        [GhosttyIntegration(), SketchyBarIntegration(), BordersIntegration(),
-         AppearanceIntegration(), WallpaperIntegration()]
+        [
+            // Terminals first: they are what the user is looking at.
+            GhosttyIntegration(), KittyIntegration(), AlacrittyIntegration(),
+            WezTermIntegration(), ITerm2Integration(),
+            // Desktop furniture.
+            SketchyBarIntegration(), BordersIntegration(), HerdrIntegration(),
+            AppearanceIntegration(), WallpaperIntegration(),
+            // Editors and the rest.
+            VSCodeIntegration(), NeovimIntegration(), ZedIntegration(),
+            BtopIntegration(), TmuxIntegration(),
+        ]
     }
 
     public var installed: [any Integration] { integrations.filter(\.isInstalled) }
