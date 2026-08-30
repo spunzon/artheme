@@ -220,6 +220,20 @@ check("herdr: rewrites the custom block", herdr.contains("accent = \"#e68e0d\"")
 check("herdr: one custom block only",
       herdr.components(separatedBy: "[theme.custom]").count == 2)
 
+print("the desktop arbiter")
+// Download and apply now run in parallel, so either order is possible and the
+// photograph must win both ways.
+let arbiter = WallpaperArbiter.shared
+arbiter.newRound()
+check("flat colour claims an empty round", arbiter.claim(.flatColour))
+check("a photograph beats it afterwards", arbiter.claim(.photograph))
+arbiter.newRound()
+check("a photograph claims an empty round", arbiter.claim(.photograph))
+check("the flat colour never overwrites it", !arbiter.claim(.flatColour))
+check("a second photograph does not flicker over the first", !arbiter.claim(.photograph))
+arbiter.newRound()
+check("a new theme switch starts over", arbiter.claim(.flatColour))
+
 print("nothing executable reaches a generated file")
 // A theme whose free text is hostile: every generated file must stay inert.
 let (machine2, lib2, _) = try fixture()

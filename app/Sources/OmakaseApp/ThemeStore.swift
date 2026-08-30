@@ -40,6 +40,12 @@ final class ThemeStore: ObservableObject {
     func apply(_ theme: Theme) {
         guard busySlug == nil else { return }
         busySlug = theme.slug
+        WallpaperArbiter.shared.newRound()
+        // Started here, not after the switch finishes: the download and the
+        // apply pass have nothing to say to each other, and running them in
+        // parallel is the difference between the picture landing at 1.4s and
+        // at 0.8s. The arbiter settles which of the two gets the desktop.
+        fetchWallpapersIfMissing(theme)
         Task {
             let result: [String] = await Task.detached(priority: .userInitiated) { [switcher] in
                 (try? switcher.apply(theme)) ?? ["could not apply \(theme.name)"]
@@ -47,7 +53,6 @@ final class ThemeStore: ObservableObject {
             notes = result
             currentSlug = theme.slug
             busySlug = nil
-            fetchWallpapersIfMissing(theme)
         }
     }
 
@@ -76,7 +81,10 @@ final class ThemeStore: ObservableObject {
                         guard !shown else { return }
                         shown = true
                         library.remember(wallpaper: url, for: theme)
-                        WallpaperIntegration().set(url)
+                        // Beats the flat colour whichever finishes first.
+                        if WallpaperArbiter.shared.claim(.photograph) {
+                            WallpaperIntegration().set(url)
+                        }
                     }
                 return result?.wallpapers ?? 0
             }.value

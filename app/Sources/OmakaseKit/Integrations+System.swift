@@ -194,7 +194,10 @@ public struct WallpaperIntegration: Integration {
 
     public func apply(_ theme: Theme, _ l: Library) throws -> String? {
         guard machine.appliesLive else { return nil }
-        if let image = l.wallpaper(for: theme) { return set(image) }
+        if let image = l.wallpaper(for: theme) {
+            guard WallpaperArbiter.shared.claim(.photograph) else { return nil }
+            return set(image)
+        }
 
         // No picture yet. If one is on its way — the theme knows where it came
         // from — put the theme's own colour up immediately rather than leaving
@@ -204,6 +207,8 @@ public struct WallpaperIntegration: Integration {
         let source = theme.directory.appendingPathComponent("source.json")
         guard FileManager.default.fileExists(atPath: source.path),
               let flat = SolidImage.url(for: theme.background, in: l) else { return nil }
+        // Loses to a photograph that has already landed in this round.
+        guard WallpaperArbiter.shared.claim(.flatColour) else { return nil }
         return set(flat)
     }
 
