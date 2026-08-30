@@ -157,7 +157,7 @@ public struct Fetcher: Sendable {
 
         var request = URLRequest(url: url)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("omakase", forHTTPHeaderField: "User-Agent")
+        request.setValue("artheme", forHTTPHeaderField: "User-Agent")
         // Optional, and only ever sent to the API host — the redirect handler
         // below strips it if a hop leaves that host.
         if let token = ProcessInfo.processInfo.environment["GITHUB_TOKEN"], !token.isEmpty {
@@ -215,7 +215,7 @@ public struct Fetcher: Sendable {
             throw FetchError.http(0, urlString)
         }
         var request = URLRequest(url: url)
-        request.setValue("omakase", forHTTPHeaderField: "User-Agent")
+        request.setValue("artheme", forHTTPHeaderField: "User-Agent")
         let (data, response) = try send(request)
         guard response.statusCode == 200 else {
             throw FetchError.http(response.statusCode, urlString)

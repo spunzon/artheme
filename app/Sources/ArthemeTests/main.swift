@@ -1,5 +1,5 @@
 import Foundation
-import OmakaseKit
+import ArthemeKit
 
 var failures: [String] = []
 
@@ -10,7 +10,7 @@ func check(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String = "")
 
 func theme(_ body: String) throws -> Theme {
     let dir = URL(fileURLWithPath: NSTemporaryDirectory())
-        .appendingPathComponent("omakase-test-\(UUID().uuidString)")
+        .appendingPathComponent("artheme-test-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     try body.write(to: dir.appendingPathComponent("colors.toml"),
                    atomically: true, encoding: .utf8)
@@ -72,7 +72,7 @@ if let t = try? theme("""
 }
 
 print("paths")
-let parent = URL(fileURLWithPath: "/tmp/omakase-parent")
+let parent = URL(fileURLWithPath: "/tmp/artheme-parent")
 for bad in ["../escape", "..", ".", "/etc/passwd", ".hidden", "a/b", ""] {
     check("refuses \(bad.isEmpty ? "an empty name" : bad)",
           Paths.safeChild(of: parent, named: bad) == nil)
@@ -81,7 +81,7 @@ for bad in ["../escape", "..", ".", "/etc/passwd", ".hidden", "a/b", ""] {
 // /private only for paths that already exist, so an existing parent under /tmp
 // and a child that does not exist yet compared as "outside".
 let symlinked = URL(fileURLWithPath: "/tmp")
-    .appendingPathComponent("omakase-symlink-\(UUID().uuidString)")
+    .appendingPathComponent("artheme-symlink-\(UUID().uuidString)")
 try? FileManager.default.createDirectory(at: symlinked, withIntermediateDirectories: true)
 check("accepts a name under a symlinked directory",
       Paths.safeChild(of: symlinked, named: "batou") != nil)
@@ -94,9 +94,9 @@ try? FileManager.default.removeItem(at: symlinked)
 /// whoever is running them.
 func fixture() throws -> (Machine, Library, Theme) {
     let home = URL(fileURLWithPath: NSTemporaryDirectory())
-        .appendingPathComponent("omakase-home-\(UUID().uuidString)")
+        .appendingPathComponent("artheme-home-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-    let library = Library(root: home.appendingPathComponent(".config/omakase"))
+    let library = Library(root: home.appendingPathComponent(".config/artheme"))
     try library.ensureDirectories()
     let dir = library.themesDirectory.appendingPathComponent("probe")
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -144,15 +144,15 @@ check("alacritty: sections",
       && alacritty.contains("background = \"#121212\""))
 
 _ = try WezTermIntegration(machine: machine).apply(probe, lib)
-let wez = body(machine.config("wezterm/colors/omakase.toml"))
+let wez = body(machine.config("wezterm/colors/artheme.toml"))
 check("wezterm: scheme name and 8+8 colours",
-      wez.contains("name = \"Omakase\"") && wez.contains("ansi = [") && wez.contains("brights = ["))
+      wez.contains("name = \"Artheme\"") && wez.contains("ansi = [") && wez.contains("brights = ["))
 
 _ = try ITerm2Integration(machine: machine).apply(probe, lib)
-let iterm = json(machine.library("Application Support/iTerm2/DynamicProfiles/omakase.json"))
+let iterm = json(machine.library("Application Support/iTerm2/DynamicProfiles/artheme.json"))
 let profile = (iterm?["Profiles"] as? [[String: Any]])?.first
 check("iterm2: profile with a stable guid",
-      profile?["Name"] as? String == "Omakase" && profile?["Guid"] != nil)
+      profile?["Name"] as? String == "Artheme" && profile?["Guid"] != nil)
 check("iterm2: 16 ansi colours",
       (0..<16).allSatisfy { profile?["Ansi \($0) Color"] != nil })
 check("iterm2: components are 0…1 floats",
@@ -169,28 +169,28 @@ check("borders: accent as active colour", borders.contains("active_color=0xffe68
 
 _ = try VSCodeIntegration(machine: machine).apply(probe, lib)
 let code = json(machine.home.appendingPathComponent(
-    ".vscode/extensions/omakase-theme/themes/omakase-color-theme.json"))
+    ".vscode/extensions/artheme-theme/themes/artheme-color-theme.json"))
 check("vscode: dark type follows the theme", code?["type"] as? String == "dark")
 check("vscode: terminal ansi colours",
       (code?["colors"] as? [String: String])?["terminal.ansiRed"] == "#c04040")
 
 _ = try NeovimIntegration(machine: machine).apply(probe, lib)
-let nvim = body(machine.config("nvim/colors/omakase.lua"))
+let nvim = body(machine.config("nvim/colors/artheme.lua"))
 check("neovim: names itself and sets background",
-      nvim.contains("vim.g.colors_name = \"omakase\"") && nvim.contains("vim.o.background = \"dark\""))
+      nvim.contains("vim.g.colors_name = \"artheme\"") && nvim.contains("vim.o.background = \"dark\""))
 check("neovim: 16 terminal colours",
       (0..<16).allSatisfy { nvim.contains("terminal_color_\($0) =") })
 
 _ = try ZedIntegration(machine: machine).apply(probe, lib)
-let zed = json(machine.config("zed/themes/omakase.json"))
+let zed = json(machine.config("zed/themes/artheme.json"))
 let zedTheme = (zed?["themes"] as? [[String: Any]])?.first
-check("zed: family with one theme", zed?["name"] as? String == "Omakase")
+check("zed: family with one theme", zed?["name"] as? String == "Artheme")
 check("zed: appearance and ansi",
       zedTheme?["appearance"] as? String == "dark"
       && (zedTheme?["style"] as? [String: String])?["terminal.ansi.red"] == "#c04040")
 
 _ = try BtopIntegration(machine: machine).apply(probe, lib)
-let btop = body(machine.config("btop/themes/omakase.theme"))
+let btop = body(machine.config("btop/themes/artheme.theme"))
 check("btop: main colours", btop.contains("theme[main_bg]=\"#121212\"")
       && btop.contains("theme[hi_fg]=\"#e68e0d\""))
 

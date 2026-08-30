@@ -1,6 +1,6 @@
 import Foundation
 
-public enum OmakaseError: LocalizedError {
+public enum ArthemeError: LocalizedError {
     case missingColors(URL)
     case badValue(file: URL, key: String, value: String)
     case noSuchTheme(String)
@@ -53,7 +53,7 @@ public struct Theme: Identifiable, Sendable {
     public static func load(directory: URL) throws -> Theme {
         let file = directory.appendingPathComponent("colors.toml")
         guard let text = try? String(contentsOf: file, encoding: .utf8) else {
-            throw OmakaseError.missingColors(directory)
+            throw ArthemeError.missingColors(directory)
         }
 
         var colors: [String: Color] = [:]
@@ -62,7 +62,7 @@ public struct Theme: Identifiable, Sendable {
             guard let (key, value) = Self.entry(in: String(line)) else { continue }
             if Self.colorKeys.contains(key) {
                 guard let c = Color(value) else {
-                    throw OmakaseError.badValue(file: file, key: key, value: value)
+                    throw ArthemeError.badValue(file: file, key: key, value: value)
                 }
                 colors[key] = c
             } else {
@@ -71,7 +71,7 @@ public struct Theme: Identifiable, Sendable {
         }
 
         guard let bg = colors["background"], let fg = colors["foreground"] else {
-            throw OmakaseError.missingColors(directory)
+            throw ArthemeError.missingColors(directory)
         }
 
         // Semantic scheme -> numbered palette.
@@ -135,7 +135,7 @@ public struct Theme: Identifiable, Sendable {
 
     /// The theme's own cover image, if it has one.
     ///
-    /// Omarchy themes publish a preview.png to show themselves off; omakase
+    /// Omarchy themes publish a preview.png to show themselves off; artheme
     /// ships a 600px jpeg of it so the grid is full the moment the app opens,
     /// without carrying 100 MB of wallpapers. Themes with neither fall back to
     /// a cover drawn from their palette.

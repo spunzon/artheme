@@ -3,7 +3,7 @@ import Foundation
 /// Where themes live and which one is active.
 ///
 /// The layout is the same one the shell version used, so an existing
-/// ~/.config/omakase keeps working: themes/<name>/colors.toml, generated/ for
+/// ~/.config/artheme keeps working: themes/<name>/colors.toml, generated/ for
 /// derived files, and `current` as a symlink to the active theme.
 public struct Library: Sendable {
     public let root: URL
@@ -11,11 +11,11 @@ public struct Library: Sendable {
     public init(root: URL? = nil) {
         if let root {
             self.root = root
-        } else if let env = ProcessInfo.processInfo.environment["OMAKASE_HOME"], !env.isEmpty {
+        } else if let env = ProcessInfo.processInfo.environment["ARTHEME_HOME"], !env.isEmpty {
             self.root = URL(fileURLWithPath: (env as NSString).expandingTildeInPath)
         } else {
             self.root = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".config/omakase")
+                .appendingPathComponent(".config/artheme")
         }
     }
 
@@ -40,10 +40,10 @@ public struct Library: Sendable {
 
     public func theme(named slug: String) throws -> Theme {
         guard let safe = Paths.safeChild(of: themesDirectory, named: slug) else {
-            throw OmakaseError.noSuchTheme(slug)
+            throw ArthemeError.noSuchTheme(slug)
         }
         do { return try Theme.load(directory: safe) }
-        catch { throw OmakaseError.noSuchTheme(slug) }
+        catch { throw ArthemeError.noSuchTheme(slug) }
     }
 
     public var current: Theme? {
@@ -125,7 +125,7 @@ public extension Library {
         do { try ensureDirectories() } catch {
             // Never silent: a home that cannot be written to is worth saying.
             FileHandle.standardError.write(
-                Data("omakase: cannot create \(themesDirectory.path): \(error.localizedDescription)\n".utf8))
+                Data("artheme: cannot create \(themesDirectory.path): \(error.localizedDescription)\n".utf8))
             return 0
         }
         var copied = 0

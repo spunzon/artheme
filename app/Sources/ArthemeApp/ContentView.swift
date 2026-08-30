@@ -1,4 +1,4 @@
-import OmakaseKit
+import ArthemeKit
 import SwiftUI
 
 struct ContentView: View {
@@ -74,7 +74,7 @@ struct ContentView: View {
             Text(store.themes.isEmpty ? "No themes yet" : "Nothing matches")
                 .font(.headline)
             Text(store.themes.isEmpty
-                 ? "Add one to ~/.config/omakase/themes"
+                 ? "Add one to ~/.config/artheme/themes"
                  : "No theme matches “\(query)”")
                 .font(.caption).foregroundStyle(.secondary)
         }

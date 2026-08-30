@@ -1,12 +1,12 @@
-import OmakaseKit
+import ArthemeKit
 import SwiftUI
 
 @main
-struct OmakaseApp: App {
+struct ArthemeApp: App {
     @StateObject private var store = ThemeStore()
 
     var body: some Scene {
-        Window("Omakase", id: "themes") {
+        Window("Artheme", id: "themes") {
             ContentView().environmentObject(store)
         }
         .defaultSize(width: 760, height: 560)
@@ -19,7 +19,7 @@ struct OmakaseApp: App {
 
         // The menu bar item is the point of the app: switching without opening
         // anything. The window is for browsing.
-        MenuBarExtra("Omakase", systemImage: "paintpalette") {
+        MenuBarExtra("Artheme", systemImage: "paintpalette") {
             MenuContent().environmentObject(store)
         }
     }
@@ -43,7 +43,7 @@ private struct MenuContent: View {
             NSApp.activate(ignoringOtherApps: true)
         }
         Divider()
-        Button("Quit Omakase") { NSApp.terminate(nil) }
+        Button("Quit Artheme") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
     }
 }

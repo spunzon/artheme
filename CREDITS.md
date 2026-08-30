@@ -5,7 +5,7 @@ The switcher is mine. The themes are not.
 Each `themes/<name>/colors.toml` in this repo comes from someone else's work,
 kept here unmodified so the palette stays faithful to the original.
 
-**Wallpapers are not redistributed.** `omakase fetch <name>` downloads them from
+**Wallpapers are not redistributed.** `artheme fetch <name>` downloads them from
 the theme's own repository, where their licence applies, and the app pulls them
 in the background the first time you apply a theme.
 

@@ -2,18 +2,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "Omakase",
+    name: "Artheme",
     platforms: [.macOS(.v13)],
     targets: [
         // Everything the CLI and the app share: themes, colours, integrations.
-        .target(name: "OmakaseKit"),
-        // `omakase` — the command line interface, no dependencies at runtime.
-        .executableTarget(name: "omakase", dependencies: ["OmakaseKit"]),
-        // Omakase.app — the window and the menu bar item.
-        .executableTarget(name: "OmakaseApp", dependencies: ["OmakaseKit"]),
+        .target(name: "ArthemeKit"),
+        // `artheme` — the command line interface, no dependencies at runtime.
+        .executableTarget(name: "artheme", dependencies: ["ArthemeKit"]),
+        // Artheme.app — the window and the menu bar item.
+        .executableTarget(name: "ArthemeApp", dependencies: ["ArthemeKit"]),
         // A plain executable, not a testTarget: XCTest ships with Xcode, not
         // with the Command Line Tools, and the whole point is building with
-        // only the latter. Run it with `swift run OmakaseTests`.
-        .executableTarget(name: "OmakaseTests", dependencies: ["OmakaseKit"]),
+        // only the latter. Run it with `swift run ArthemeTests`.
+        .executableTarget(name: "ArthemeTests", dependencies: ["ArthemeKit"]),
     ]
 )

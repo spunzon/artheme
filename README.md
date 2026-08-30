@@ -1,4 +1,4 @@
-# omakase
+# artheme
 
 Omarchy-style themes for macOS. One `colors.toml` per theme drives the
 terminal, the status bar, the window borders, the desktop wallpaper and the
@@ -18,24 +18,24 @@ format is, so most Omarchy themes work here unmodified.
 ## What changes when you switch
 
 Every integration is optional and auto-detected: whatever you do not have is
-skipped. `omakase doctor` says what it found.
+skipped. `artheme doctor` says what it found.
 
 | App | How | Live? |
 |---|---|---|
 | **Ghostty** | generated config, included from yours | yes, `SIGUSR2` |
 | **kitty** | generated config, `include`d from yours | yes, `SIGUSR1` |
 | **Alacritty** | generated toml, `import`ed from yours | yes, it watches the file |
-| **WezTerm** | a colour scheme in `colors/omakase.toml` | yes, it watches the directory |
-| **iTerm2** | a Dynamic Profile named Omakase | yes, once you pick the profile |
+| **WezTerm** | a colour scheme in `colors/artheme.toml` | yes, it watches the directory |
+| **iTerm2** | a Dynamic Profile named Artheme | yes, once you pick the profile |
 | **SketchyBar** | generated palette, `source`d from `colors.sh` | yes, `--reload` |
 | **JankyBorders** | generated `bordersrc`, process restarted | yes |
 | **herdr** | its `[theme.custom]` block, rewritten surgically | yes, reloads over its socket |
 | **Wallpaper** | every Space and display repointed | yes |
 | **Light/dark mode** | the system setting follows the theme | yes |
 | **VS Code** | a local theme extension | pick it once, reload the window |
-| **Neovim** | `~/.config/nvim/colors/omakase.lua` | `:colorscheme omakase` |
-| **Zed** | `~/.config/zed/themes/omakase.json` | pick it once |
-| **btop** | `~/.config/btop/themes/omakase.theme` | on next start |
+| **Neovim** | `~/.config/nvim/colors/artheme.lua` | `:colorscheme artheme` |
+| **Zed** | `~/.config/zed/themes/artheme.json` | pick it once |
+| **btop** | `~/.config/btop/themes/artheme.theme` | on next start |
 | **tmux** | generated conf, `source-file`d from yours | yes, sourced live |
 
 Colours are derived from the theme's own palette, not copied from files a theme
@@ -47,12 +47,12 @@ that has no macOS equivalent.
 
 ## Install
 
-Download `Omakase.app`, drag it to Applications, open it. It is not notarised
+Download `Artheme.app`, drag it to Applications, open it. It is not notarised
 yet, so the first time macOS will say the developer cannot be verified: go to
 **System Settings → Privacy & Security** and press **Open Anyway**.
 
 It ships with 24 themes — their colours and a 35 KB cover each — and copies
-them into `~/.config/omakase/themes` the first time it runs. Wallpapers are not
+them into `~/.config/artheme/themes` the first time it runs. Wallpapers are not
 included: the app fetches the ones belonging to a theme in the background the
 first time you apply it, and a theme with no picture at all gets a cover drawn
 from its own palette. Nothing else is required — no Python, no Homebrew, no
@@ -61,13 +61,13 @@ runtime of any kind.
 Then, once:
 
 ```
-omakase install       # wires up whatever apps you have
-omakase doctor        # check what it found
+artheme install       # wires up whatever apps you have
+artheme doctor        # check what it found
 ```
 
-`omakase install` only appends: one line to Ghostty's or kitty's config, a shim
+`artheme install` only appends: one line to Ghostty's or kitty's config, a shim
 for SketchyBar's `colors.sh`, a `source-file` for tmux. Everything it takes over
-is backed up as `<file>.omakase-bak`, and `omakase restore --yes` undoes all of
+is backed up as `<file>.artheme-bak`, and `artheme restore --yes` undoes all of
 it.
 
 ### From source
@@ -75,30 +75,30 @@ it.
 Needs the Command Line Tools (`xcode-select --install`) and nothing else:
 
 ```bash
-git clone https://github.com/<you>/omakase ~/projects/omakase
-cd ~/projects/omakase/app
-./Scripts/bundle.sh            # builds Omakase.app and a zip, universal
-swift run OmakaseTests         # 44 checks
+git clone https://github.com/<you>/artheme ~/projects/artheme
+cd ~/projects/artheme/app
+./Scripts/bundle.sh            # builds Artheme.app and a zip, universal
+swift run ArthemeTests         # 44 checks
 ```
 
-The CLI lives inside the bundle; `omakase install-cli` puts it on your PATH.
+The CLI lives inside the bundle; `artheme install-cli` puts it on your PATH.
 
 ## Usage
 
 ```bash
-omakase                 # list themes, * marks the active one
-omakase osaka-jade      # switch
-omakase next            # rotate
-omakase reload          # re-apply, after editing a colors.toml
+artheme                 # list themes, * marks the active one
+artheme osaka-jade      # switch
+artheme next            # rotate
+artheme reload          # re-apply, after editing a colors.toml
 
-omakase bg              # list the active theme's wallpapers
-omakase bg 4            # pick by number
-omakase bg louvre       # ...or by partial name
-omakase bg next         # rotate
+artheme bg              # list the active theme's wallpapers
+artheme bg 4            # pick by number
+artheme bg louvre       # ...or by partial name
+artheme bg next         # rotate
 
-omakase doctor          # what's installed, what's wired
-omakase swatch          # print the active palette
-omakase restore --yes   # put every file it touched back
+artheme doctor          # what's installed, what's wired
+artheme swatch          # print the active palette
+artheme restore --yes   # put every file it touched back
 ```
 
 The wallpaper choice is remembered per theme. The app does the same things with
@@ -109,11 +109,11 @@ a grid, and its menu bar item switches without opening anything.
 Most Omarchy themes work as-is:
 
 ```bash
-omakase catalogue                        # what upstream Omarchy publishes
-omakase fetch osaka-jade                 # from Omarchy itself
-omakase fetch mattbbia/pissarro          # from a standalone theme repo
-omakase fetch owner/repo#branch --as foo
-omakase fetch batou                      # already installed → just its wallpapers
+artheme catalogue                        # what upstream Omarchy publishes
+artheme fetch osaka-jade                 # from Omarchy itself
+artheme fetch mattbbia/pissarro          # from a standalone theme repo
+artheme fetch owner/repo#branch --as foo
+artheme fetch batou                      # already installed → just its wallpapers
 ```
 
 `fetch` pulls `colors.toml` plus `backgrounds/` (and `backgrounds-alt/`,
@@ -122,7 +122,7 @@ theme came from in `source.json`, so wallpapers can always be re-downloaded
 after a fresh clone.
 
 Doing it by hand works too: drop a `colors.toml` in `themes/<name>/` and it
-shows up in `omakase list`.
+shows up in `artheme list`.
 
 ### The two colors.toml schemes
 
@@ -133,7 +133,7 @@ Omarchy themes ship in two formats and the parser takes both:
 - **Semantic** (e.g. pissarro): `red`, `green`, `bright_blue`, `muted`,
   `mode = "light"`…
 
-The mapping lives in `Theme.semantic` in `app/Sources/OmakaseKit`, checked
+The mapping lives in `Theme.semantic` in `app/Sources/ArthemeKit`, checked
 against the `ghostty.conf` pissarro's author publishes. The one colour that doesn't fall
 out cleanly from the semantic scheme is `color15`; if a theme defines it
 differently, add it to `colors.toml` by hand.
@@ -164,7 +164,7 @@ rewrite WallpaperAgent's index:
 where each `Configuration` is a binary plist `{type: imageFile, url: {relative:
 file://…}}`, and then `killall WallpaperAgent`. This is a private Apple file
 and it may change between macOS releases; a copy is kept as
-`Index.plist.omakase-bak` the first time, and `theme restore --yes` puts it
+`Index.plist.artheme-bak` the first time, and `theme restore --yes` puts it
 back. *Corollary:* a Space created **after** a theme switch is born with the
 system default. `theme reload` catches it up.
 
@@ -217,7 +217,7 @@ every value as hostile:
   Downloads are https-only and capped at 32 MB.
 - **`GITHUB_TOKEN` is optional and only ever sent to `api.github.com`.** It is
   dropped if a redirect leaves that host, and never attached to file downloads.
-- **Everything it takes over is backed up** as `<file>.omakase-bak` (a second
+- **Everything it takes over is backed up** as `<file>.artheme-bak` (a second
   install that would overwrite different content writes a timestamped copy
   instead), and `theme restore --yes` puts it all back.
 
@@ -226,7 +226,7 @@ from a stranger's repository, and `install` still edits your app configs. Read
 `bin/theme` before trusting it — it is one file.
 
 ```bash
-cd app && swift run OmakaseTests   # 44 checks: the core and all 15 integrations
+cd app && swift run ArthemeTests   # 44 checks: the core and all 15 integrations
 ```
 
 Integrations write through an injectable `Machine`, so the tests point a whole
@@ -244,18 +244,18 @@ backtick.
 | `~/.config/herdr/config.toml` | only its `[theme.custom]` block |
 | `…/com.apple.wallpaper/Store/Index.plist` | image entries repointed |
 
-Each is backed up once as `<name>.omakase-bak` before the first change.
+Each is backed up once as `<name>.artheme-bak` before the first change.
 `theme restore --yes` reverses all of it.
 
 ## Recording a demo
 
-`omakase demo` cycles themes on a timer and prints each palette in truecolor,
+`artheme demo` cycles themes on a timer and prints each palette in truecolor,
 so every theme's row stays as printed and the sequence is legible afterwards.
 Alternate light and dark themes, and don't start with the one already active —
 the first switch is the one that has to land. Start a screen recording, then:
 
 ```bash
-omakase demo --hold 3 batou pissarro osaka-jade
+artheme demo --hold 3 batou pissarro osaka-jade
 ```
 
 ## Credits

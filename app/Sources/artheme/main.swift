@@ -1,5 +1,5 @@
 import Foundation
-import OmakaseKit
+import ArthemeKit
 
 let library = Library()
 let switcher = Switcher(library: library)
@@ -37,7 +37,7 @@ func apply(_ name: String) {
         // The CLI never downloads behind your back; it just says how.
         if theme.wallpapers.isEmpty,
            Files.exists(theme.directory.appendingPathComponent("source.json")) {
-            print("  · no wallpapers yet — get them with:  omakase fetch \(theme.slug)")
+            print("  · no wallpapers yet — get them with:  artheme fetch \(theme.slug)")
         }
     } catch { fail(error.localizedDescription) }
 }
@@ -57,22 +57,22 @@ func swatch(_ theme: Theme) {
 }
 
 let usage = """
-omakase — Omarchy-style themes for macOS
+artheme — Omarchy-style themes for macOS
 
-  omakase                       show the active theme and the list
-  omakase <name>                switch to a theme
-  omakase next                  rotate to the next theme
-  omakase reload                re-apply the active theme
-  omakase bg [n|next|name]      pick the wallpaper among the theme's own
+  artheme                       show the active theme and the list
+  artheme <name>                switch to a theme
+  artheme next                  rotate to the next theme
+  artheme reload                re-apply the active theme
+  artheme bg [n|next|name]      pick the wallpaper among the theme's own
 
-  omakase fetch <name|owner/repo[#branch]> [--as <name>] [--no-wallpapers]
-  omakase catalogue             list the themes upstream Omarchy publishes
-  omakase install               wire up the apps present on this machine
-  omakase install-cli [dir]     symlink omakase into your PATH
-  omakase doctor                report which integrations are detected
-  omakase restore [--yes]       put the files it touched back
-  omakase swatch                print the active palette
-  omakase demo [names...]       cycle themes on a timer, for screen recording
+  artheme fetch <name|owner/repo[#branch]> [--as <name>] [--no-wallpapers]
+  artheme catalogue             list the themes upstream Omarchy publishes
+  artheme install               wire up the apps present on this machine
+  artheme install-cli [dir]     symlink artheme into your PATH
+  artheme doctor                report which integrations are detected
+  artheme restore [--yes]       put the files it touched back
+  artheme swatch                print the active palette
+  artheme demo [names...]       cycle themes on a timer, for screen recording
 """
 
 switch args.first {
@@ -99,14 +99,14 @@ case "doctor":
 
 case "install":
     try switcher.install()
-    print("wired up. Now pick a theme:  omakase <name>")
+    print("wired up. Now pick a theme:  artheme <name>")
 
 case "install-cli":
     // The CLI lives inside the app bundle; this puts it on the PATH.
     let target = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
     let dir = URL(fileURLWithPath: args.count > 1 ? args[1]
                   : Files.home.appendingPathComponent(".local/bin").path)
-    let link = dir.appendingPathComponent("omakase")
+    let link = dir.appendingPathComponent("artheme")
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     try? FileManager.default.removeItem(at: link)
     // A binary inside an .app keeps its path across updates, so link to it. One
@@ -140,7 +140,7 @@ case "next":
     apply(all[i].slug)
 
 case "set":
-    guard args.count > 1 else { fail("usage: omakase set <name>") }
+    guard args.count > 1 else { fail("usage: artheme set <name>") }
     apply(args[1])
 
 case "swatch":
@@ -150,7 +150,7 @@ case "swatch":
 case "bg":
     guard let theme = library.current else { fail("no active theme") }
     let all = theme.wallpapers
-    guard !all.isEmpty else { fail("theme '\(theme.slug)' ships no wallpapers (try: omakase fetch \(theme.slug))") }
+    guard !all.isEmpty else { fail("theme '\(theme.slug)' ships no wallpapers (try: artheme fetch \(theme.slug))") }
     let active = library.wallpaper(for: theme)
     guard args.count > 1 else {
         for (i, url) in all.enumerated() {
@@ -167,7 +167,7 @@ case "bg":
         pick = all[n - 1]
     } else {
         let matches = all.filter { $0.lastPathComponent.lowercased().contains(argument.lowercased()) }
-        guard matches.count == 1 else { fail("'\(argument)' does not identify a single wallpaper. Try: omakase bg") }
+        guard matches.count == 1 else { fail("'\(argument)' does not identify a single wallpaper. Try: artheme bg") }
         pick = matches[0]
     }
     library.remember(wallpaper: pick, for: theme)
@@ -181,7 +181,7 @@ case "catalogue":
 case "fetch":
     let wallpapers = !flag("--no-wallpapers")
     let alias = value("--as")
-    guard args.count > 1 else { fail("usage: omakase fetch <name|owner/repo> [--as <name>] [--no-wallpapers]") }
+    guard args.count > 1 else { fail("usage: artheme fetch <name|owner/repo> [--as <name>] [--no-wallpapers]") }
     let spec = args[1]
     let fetcher = Fetcher(library: library)
     do {
@@ -194,11 +194,11 @@ case "fetch":
         for s in result.skipped { print("    (skipped \(s))") }
         let theme = try library.theme(named: result.slug)
         print("→ \(result.slug): \(theme.appearance.rawValue), accent \(theme.accent.hex), "
-              + "\(result.wallpapers) new wallpaper(s). Apply it with:  omakase \(result.slug)")
+              + "\(result.wallpapers) new wallpaper(s). Apply it with:  artheme \(result.slug)")
     } catch { fail(error.localizedDescription) }
 
 case "restore":
-    // Backups live next to the files they shadow, so find them where omakase
+    // Backups live next to the files they shadow, so find them where artheme
     // is allowed to write.
     var found: [URL] = []
     let roots = [Files.home.appendingPathComponent(".config"),
@@ -208,18 +208,18 @@ case "restore":
         guard let walker = FileManager.default.enumerator(
             at: root, includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { continue }
-        for case let url as URL in walker where url.lastPathComponent.hasSuffix(".omakase-bak") {
+        for case let url as URL in walker where url.lastPathComponent.hasSuffix(".artheme-bak") {
             found.append(url)
         }
     }
-    guard !found.isEmpty else { print("nothing to restore: no .omakase-bak files found"); exit(0) }
+    guard !found.isEmpty else { print("nothing to restore: no .artheme-bak files found"); exit(0) }
     for backup in found {
-        let target = URL(fileURLWithPath: String(backup.path.dropLast(".omakase-bak".count)))
+        let target = URL(fileURLWithPath: String(backup.path.dropLast(".artheme-bak".count)))
         print("  \(backup.path) → \(target.path)")
     }
     guard flag("--yes") else { print("\nre-run with --yes to actually restore"); exit(0) }
     for backup in found {
-        let target = URL(fileURLWithPath: String(backup.path.dropLast(".omakase-bak".count)))
+        let target = URL(fileURLWithPath: String(backup.path.dropLast(".artheme-bak".count)))
         try? FileManager.default.removeItem(at: target)
         try? FileManager.default.copyItem(at: backup, to: target)
     }

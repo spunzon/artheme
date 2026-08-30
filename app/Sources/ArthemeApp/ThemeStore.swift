@@ -1,5 +1,5 @@
 import Foundation
-import OmakaseKit
+import ArthemeKit
 import SwiftUI
 
 /// The app's single source of truth: what is installed, what is active, and
@@ -18,7 +18,7 @@ final class ThemeStore: ObservableObject {
     private lazy var switcher = Switcher(library: library)
 
     init() {
-        // A downloaded app starts with an empty ~/.config/omakase, so the
+        // A downloaded app starts with an empty ~/.config/artheme, so the
         // themes shipped in the bundle are copied in on first launch.
         if let bundled = Bundle.main.resourceURL?.appendingPathComponent("Themes") {
             library.seed(from: bundled)

@@ -29,7 +29,7 @@ public struct Machine: Sendable {
     }
 }
 
-/// One application omakase can theme.
+/// One application artheme can theme.
 ///
 /// Every integration is optional and self-detecting: whatever is not installed
 /// is skipped, so the same build works on any Mac without configuration.
@@ -38,7 +38,7 @@ public protocol Integration: Sendable {
     var name: String { get }
     /// Is the application present on this machine?
     var isInstalled: Bool { get }
-    /// Has omakase been wired into its configuration?
+    /// Has artheme been wired into its configuration?
     func isWired(_ library: Library) -> Bool
     /// Take over the app's colours. Idempotent, keeps a backup.
     func install(_ library: Library) throws
@@ -147,27 +147,27 @@ public enum Files {
         try? String(contentsOf: url, encoding: .utf8)
     }
 
-    /// Keep the version of a file omakase is about to take over.
+    /// Keep the version of a file artheme is about to take over.
     ///
-    /// The first backup is the pre-omakase original and is never overwritten,
+    /// The first backup is the pre-artheme original and is never overwritten,
     /// but a later install must not silently discard edits made since then, so
     /// anything different gets its own timestamped copy.
     @discardableResult
     public static func backup(_ url: URL) -> URL? {
         guard exists(url) else { return nil }
-        let bak = URL(fileURLWithPath: url.path + ".omakase-bak")
+        let bak = URL(fileURLWithPath: url.path + ".artheme-bak")
         if !exists(bak) {
             try? FileManager.default.copyItem(at: url, to: bak)
             return bak
         }
         if (try? Data(contentsOf: bak)) == (try? Data(contentsOf: url)) { return bak }
         let stamp = ISO8601DateFormatter.stamp()
-        let dated = URL(fileURLWithPath: "\(url.path).omakase-bak.\(stamp)")
+        let dated = URL(fileURLWithPath: "\(url.path).artheme-bak.\(stamp)")
         try? FileManager.default.copyItem(at: url, to: dated)
         return dated
     }
 
-    /// Does this config already point at the file omakase generates? Accepts
+    /// Does this config already point at the file artheme generates? Accepts
     /// the path written absolutely, via $HOME or via ~.
     public static func references(_ target: URL, in file: URL) -> Bool {
         guard let body = read(file) else { return false }

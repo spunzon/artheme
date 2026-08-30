@@ -1,7 +1,7 @@
-import OmakaseKit
+import ArthemeKit
 import SwiftUI
 
-extension OmakaseKit.Color {
+extension ArthemeKit.Color {
     var swiftUI: SwiftUI.Color {
         SwiftUI.Color(red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255)
     }
@@ -87,8 +87,8 @@ struct ThemeCard: View {
 struct GeneratedCover: View {
     let theme: Theme
 
-    private var panel: OmakaseKit.Color { theme.background.mixed(with: theme.foreground, 0.08) }
-    private var dim: OmakaseKit.Color { theme.background.mixed(with: theme.foreground, 0.45) }
+    private var panel: ArthemeKit.Color { theme.background.mixed(with: theme.foreground, 0.08) }
+    private var dim: ArthemeKit.Color { theme.background.mixed(with: theme.foreground, 0.45) }
 
     var body: some View {
         GeometryReader { geo in

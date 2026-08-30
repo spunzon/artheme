@@ -1,12 +1,12 @@
 #!/bin/bash
-# Builds Omakase.app and a zip ready to send to someone.
+# Builds Artheme.app and a zip ready to send to someone.
 # No Xcode project and no dependencies: swiftc, a plist and ditto.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION="${VERSION:-0.1.0}"
 OUT="$PWD/build"
-APP="$OUT/Omakase.app"
+APP="$OUT/Artheme.app"
 
 # Universal, so it runs on Apple silicon and on Intel.
 #
@@ -14,9 +14,9 @@ APP="$OUT/Omakase.app"
 # each slice is built separately and stitched together with lipo. That keeps the
 # whole build working with just the Command Line Tools.
 build_slice() {           # $1 = arch triple, $2 = scratch path
-  swift build -c release --product OmakaseApp --scratch-path "$2" \
+  swift build -c release --product ArthemeApp --scratch-path "$2" \
       -Xswiftc -target -Xswiftc "$1"
-  swift build -c release --product omakase --scratch-path "$2" \
+  swift build -c release --product artheme --scratch-path "$2" \
       -Xswiftc -target -Xswiftc "$1"
 }
 build_slice arm64-apple-macos13.0  .build-arm64
@@ -24,17 +24,17 @@ build_slice x86_64-apple-macos13.0 .build-x86
 
 BIN="$PWD/.build-universal"
 mkdir -p "$BIN"
-for product in OmakaseApp omakase; do
+for product in ArthemeApp artheme; do
   lipo -create ".build-arm64/release/$product" ".build-x86/release/$product" \
        -output "$BIN/$product"
 done
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN/OmakaseApp" "$APP/Contents/MacOS/Omakase"
+cp "$BIN/ArthemeApp" "$APP/Contents/MacOS/Artheme"
 # The CLI ships inside, but NOT next to the app binary: APFS is
-# case-insensitive, so MacOS/omakase would overwrite MacOS/Omakase.
-cp "$BIN/omakase" "$APP/Contents/Resources/omakase"
+# case-insensitive, so MacOS/artheme would overwrite MacOS/Artheme.
+cp "$BIN/artheme" "$APP/Contents/Resources/artheme"
 # Themes travel with the app: a fresh install must not open on an empty grid.
 mkdir -p "$APP/Contents/Resources/Themes"
 for d in ../themes/*/; do
@@ -43,25 +43,25 @@ for d in ../themes/*/; do
   cp "$d"/*.toml "$d"/*.json "$d"/preview.jpg \
      "$APP/Contents/Resources/Themes/$(basename "$d")/" 2>/dev/null || true
 done
-[ -f Resources/Omakase.icns ] && cp Resources/Omakase.icns "$APP/Contents/Resources/"
+[ -f Resources/Artheme.icns ] && cp Resources/Artheme.icns "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Omakase</string>
-  <key>CFBundleDisplayName</key><string>Omakase</string>
-  <key>CFBundleIdentifier</key><string>com.spunzon.omakase</string>
-  <key>CFBundleExecutable</key><string>Omakase</string>
-  <key>CFBundleIconFile</key><string>Omakase</string>
+  <key>CFBundleName</key><string>Artheme</string>
+  <key>CFBundleDisplayName</key><string>Artheme</string>
+  <key>CFBundleIdentifier</key><string>com.spunzon.artheme</string>
+  <key>CFBundleExecutable</key><string>Artheme</string>
+  <key>CFBundleIconFile</key><string>Artheme</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>${VERSION}</string>
   <key>CFBundleVersion</key><string>${VERSION}</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSAppleEventsUsageDescription</key>
-  <string>Omakase asks System Events to switch macOS between light and dark mode when you change theme.</string>
+  <string>Artheme asks System Events to switch macOS between light and dark mode when you change theme.</string>
 </dict>
 </plist>
 PLIST
@@ -71,19 +71,19 @@ PLIST
 codesign --force --deep --sign - "$APP"
 
 # ditto, not `zip`: it preserves the bundle's symlinks, permissions and signature.
-ZIP="$OUT/Omakase-${VERSION}.zip"
+ZIP="$OUT/Artheme-${VERSION}.zip"
 rm -f "$ZIP"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 
 # A disk image with a shortcut to /Applications: the drag-and-drop most people
 # expect from a Mac app, and one less "where do I put this?" for the receiver.
 STAGE="$OUT/dmg"
-DMG="$OUT/Omakase-${VERSION}.dmg"
+DMG="$OUT/Artheme-${VERSION}.dmg"
 rm -rf "$STAGE" "$DMG"
 mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "Omakase" -srcfolder "$STAGE" -ov -format UDZO -quiet "$DMG"
+hdiutil create -volname "Artheme" -srcfolder "$STAGE" -ov -format UDZO -quiet "$DMG"
 rm -rf "$STAGE"
 
 echo "→ $APP"
