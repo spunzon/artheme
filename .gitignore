@@ -13,7 +13,7 @@ __pycache__/
 *.pyc
 
 # Swift build artefacts
-app/.build/
+app/.build*/
 app/.swiftpm/
 *.xcodeproj
 app/build/

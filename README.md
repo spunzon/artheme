@@ -47,54 +47,70 @@ that has no macOS equivalent.
 
 ## Install
 
-Requires Python 3 (the one macOS ships is fine). No dependencies.
+Download `Omakase.app`, drag it to Applications, open it. It is not notarised
+yet, so the first time macOS will say the developer cannot be verified: go to
+**System Settings → Privacy & Security** and press **Open Anyway**.
 
-```bash
-git clone https://github.com/<you>/omakase ~/.config/omakase
-export PATH="$HOME/.config/omakase/bin:$PATH"   # add to your ~/.zshrc
-theme install     # wires up whatever you have, keeping .omakase-bak backups
-theme doctor      # check the result
-theme pissarro    # go
+It ships with 24 themes and copies them into `~/.config/omakase/themes` the
+first time it runs. Nothing else is required — no Python, no Homebrew, no
+runtime of any kind.
+
+Then, once:
+
+```
+omakase install       # wires up whatever apps you have
+omakase doctor        # check what it found
 ```
 
-`theme install` is idempotent and only appends: it adds one `config-file` line
-to Ghostty's config and turns SketchyBar's `colors.sh` into a shim. It backs up
-anything it takes over, once, next to the original.
+`omakase install` only appends: one line to Ghostty's or kitty's config, a shim
+for SketchyBar's `colors.sh`, a `source-file` for tmux. Everything it takes over
+is backed up as `<file>.omakase-bak`, and `omakase restore --yes` undoes all of
+it.
 
-For SketchyBar you still have to use the variables in your own `sketchybarrc`
-— `$BAR_COLOR`, `$ACCENT`, `$FG`, `$FG_DIM`, `$WS_FOCUSED_BG`… See
-[`generated/sketchybar-colors.sh`](#how-the-bar-colours-are-derived) for the
-full list, and remember SketchyBar wants `0xAARRGGBB`, alpha first.
+### From source
+
+Needs the Command Line Tools (`xcode-select --install`) and nothing else:
+
+```bash
+git clone https://github.com/<you>/omakase ~/projects/omakase
+cd ~/projects/omakase/app
+./Scripts/bundle.sh            # builds Omakase.app and a zip, universal
+swift run OmakaseTests         # 44 checks
+```
+
+The CLI lives inside the bundle; `omakase install-cli` puts it on your PATH.
 
 ## Usage
 
 ```bash
-theme                 # list themes, * marks the active one
-theme osaka-jade      # switch (or: theme set osaka-jade)
-theme next            # rotate
-theme reload          # re-apply, after editing a colors.toml
+omakase                 # list themes, * marks the active one
+omakase osaka-jade      # switch
+omakase next            # rotate
+omakase reload          # re-apply, after editing a colors.toml
 
-theme bg              # list the active theme's wallpapers
-theme bg 4            # pick by number
-theme bg louvre       # ...or by partial name
-theme bg next         # rotate
+omakase bg              # list the active theme's wallpapers
+omakase bg 4            # pick by number
+omakase bg louvre       # ...or by partial name
+omakase bg next         # rotate
 
-theme doctor          # what's installed, what's wired
-theme swatch          # print the 16 palette slots
-theme restore --yes   # put every file it touched back
+omakase doctor          # what's installed, what's wired
+omakase swatch          # print the active palette
+omakase restore --yes   # put every file it touched back
 ```
 
-The wallpaper choice is remembered per theme.
+The wallpaper choice is remembered per theme. The app does the same things with
+a grid, and its menu bar item switches without opening anything.
 
 ## Adding a theme
 
 Most Omarchy themes work as-is:
 
 ```bash
-theme fetch osaka-jade                 # from Omarchy itself
-theme fetch mattbbia/pissarro          # from a standalone theme repo
-theme fetch owner/repo#branch --as foo
-theme fetch batou                      # already installed → just its wallpapers
+omakase catalogue                        # what upstream Omarchy publishes
+omakase fetch osaka-jade                 # from Omarchy itself
+omakase fetch mattbbia/pissarro          # from a standalone theme repo
+omakase fetch owner/repo#branch --as foo
+omakase fetch batou                      # already installed → just its wallpapers
 ```
 
 `fetch` pulls `colors.toml` plus `backgrounds/` (and `backgrounds-alt/`,
@@ -103,7 +119,7 @@ theme came from in `source.json`, so wallpapers can always be re-downloaded
 after a fresh clone.
 
 Doing it by hand works too: drop a `colors.toml` in `themes/<name>/` and it
-shows up in `theme list`.
+shows up in `omakase list`.
 
 ### The two colors.toml schemes
 
@@ -114,8 +130,8 @@ Omarchy themes ship in two formats and the parser takes both:
 - **Semantic** (e.g. pissarro): `red`, `green`, `bright_blue`, `muted`,
   `mode = "light"`…
 
-The mapping lives in the `SEMANTIC` dict in `bin/theme`, checked against the
-`ghostty.conf` pissarro's author publishes. The one colour that doesn't fall
+The mapping lives in `Theme.semantic` in `app/Sources/OmakaseKit`, checked
+against the `ghostty.conf` pissarro's author publishes. The one colour that doesn't fall
 out cleanly from the semantic scheme is `color15`; if a theme defines it
 differently, add it to `colors.toml` by hand.
 
@@ -207,8 +223,7 @@ from a stranger's repository, and `install` still edits your app configs. Read
 `bin/theme` before trusting it — it is one file.
 
 ```bash
-python3 tests/test_theme.py          # the Python CLI
-cd app && swift run OmakaseTests     # the Swift core and all 15 integrations
+cd app && swift run OmakaseTests   # 44 checks: the core and all 15 integrations
 ```
 
 Integrations write through an injectable `Machine`, so the tests point a whole
@@ -231,13 +246,13 @@ Each is backed up once as `<name>.omakase-bak` before the first change.
 
 ## Recording a demo
 
-`theme demo` cycles themes on a timer and prints each palette in truecolor,
+`omakase demo` cycles themes on a timer and prints each palette in truecolor,
 so every theme's row stays as printed and the sequence is legible afterwards.
 Alternate light and dark themes, and don't start with the one already active —
 the first switch is the one that has to land. Start a screen recording, then:
 
 ```bash
-theme demo --hold 3 batou pissarro osaka-jade
+omakase demo --hold 3 batou pissarro osaka-jade
 ```
 
 ## Credits
