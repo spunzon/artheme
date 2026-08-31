@@ -198,7 +198,8 @@ public struct WallpaperIntegration: Integration {
     public func apply(_ theme: Theme, _ l: Library) throws -> Outcome {
         guard machine.appliesLive else { return .done }
         if let image = l.wallpaper(for: theme) {
-            guard WallpaperArbiter.shared.claim(.photograph) else { return .done }
+            let round = WallpaperArbiter.shared.currentRound
+            guard WallpaperArbiter.shared.claim(.photograph, round: round) else { return .done }
             return set(image).map { Outcome.note($0) } ?? .done
         }
 
@@ -211,7 +212,9 @@ public struct WallpaperIntegration: Integration {
         guard FileManager.default.fileExists(atPath: source.path),
               let flat = SolidImage.url(for: theme.background, in: l) else { return .done }
         // Loses to a photograph that has already landed in this round.
-        guard WallpaperArbiter.shared.claim(.flatColour) else { return .done }
+        guard WallpaperArbiter.shared.claim(.flatColour,
+                                           round: WallpaperArbiter.shared.currentRound)
+        else { return .done }
         return set(flat).map { Outcome.note($0) } ?? .done
     }
 
@@ -250,7 +253,42 @@ public struct WallpaperIntegration: Integration {
         else { return "wallpaper: could not write the index" }
 
         Shell.run("/usr/bin/killall", ["WallpaperAgent"], timeout: 5)
+
+        // WallpaperAgent restarts on its own and has been seen writing its
+        // previous state back over the index, leaving the old picture up under
+        // the new theme's colours. Check, and write once more if it did.
+        usleep(250_000)
+        if !indexPoints(at: image) {
+            try? out.write(to: index)
+            Shell.run("/usr/bin/killall", ["WallpaperAgent"], timeout: 5)
+        }
         return nil
+    }
+
+    /// Does the stored index actually reference this image?
+    func indexPoints(at image: URL) -> Bool {
+        guard let data = try? Data(contentsOf: index),
+              let plist = try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: nil) else { return false }
+        var found = false
+        func walk(_ node: Any) {
+            if found { return }
+            if let dict = node as? [String: Any] {
+                if dict["Provider"] as? String == "com.apple.wallpaper.choice.image",
+                   let cfg = dict["Configuration"] as? Data,
+                   let inner = try? PropertyListSerialization.propertyList(
+                    from: cfg, options: [], format: nil) as? [String: Any],
+                   let url = (inner["url"] as? [String: Any])?["relative"] as? String {
+                    if url.contains(image.lastPathComponent) { found = true }
+                    return
+                }
+                dict.values.forEach(walk)
+            } else if let array = node as? [Any] {
+                array.forEach(walk)
+            }
+        }
+        walk(plist)
+        return found
     }
 
     /// Repoint every image choice, at any depth.

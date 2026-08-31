@@ -243,18 +243,28 @@ check("and its own process is in there",
       || ps.out.contains("launchd"))
 
 print("the desktop arbiter")
-// Download and apply now run in parallel, so either order is possible and the
+// Download and apply run in parallel, so either order is possible and a
 // photograph must win both ways.
 let arbiter = WallpaperArbiter.shared
-arbiter.newRound()
-check("flat colour claims an empty round", arbiter.claim(.flatColour))
-check("a photograph beats it afterwards", arbiter.claim(.photograph))
-arbiter.newRound()
-check("a photograph claims an empty round", arbiter.claim(.photograph))
-check("the flat colour never overwrites it", !arbiter.claim(.flatColour))
-check("a second photograph does not flicker over the first", !arbiter.claim(.photograph))
-arbiter.newRound()
-check("a new theme switch starts over", arbiter.claim(.flatColour))
+var round = arbiter.newRound()
+check("flat colour claims an empty round", arbiter.claim(.flatColour, round: round))
+check("a photograph beats it afterwards", arbiter.claim(.photograph, round: round))
+round = arbiter.newRound()
+check("a photograph claims an empty round", arbiter.claim(.photograph, round: round))
+check("the flat colour never overwrites it", !arbiter.claim(.flatColour, round: round))
+check("a second photograph does not flicker over the first",
+      !arbiter.claim(.photograph, round: round))
+round = arbiter.newRound()
+check("a new switch starts over", arbiter.claim(.flatColour, round: round))
+
+// The bug this exists for: a download that outlives the switch that started it
+// must not paint the previous theme's picture over the new theme.
+let stale = arbiter.newRound()
+let current = arbiter.newRound()
+check("a late download from a previous switch is refused",
+      !arbiter.claim(.photograph, round: stale))
+check("and the current switch still gets the desktop",
+      arbiter.claim(.photograph, round: current))
 
 print("nothing executable reaches a generated file")
 // A theme whose free text is hostile: every generated file must stay inert.

@@ -40,12 +40,12 @@ final class ThemeStore: ObservableObject {
     func apply(_ theme: Theme) {
         guard busySlug == nil else { return }
         busySlug = theme.slug
-        WallpaperArbiter.shared.newRound()
+        let round = WallpaperArbiter.shared.newRound()
         // Started here, not after the switch finishes: the download and the
         // apply pass have nothing to say to each other, and running them in
         // parallel is the difference between the picture landing at 1.4s and
         // at 0.8s. The arbiter settles which of the two gets the desktop.
-        fetchWallpapersIfMissing(theme)
+        fetchWallpapersIfMissing(theme, round: round)
         Task {
             let result: [String] = await Task.detached(priority: .userInitiated) { [switcher] in
                 (try? switcher.apply(theme)) ?? ["could not apply \(theme.name)"]
@@ -59,7 +59,7 @@ final class ThemeStore: ObservableObject {
     /// Wallpapers are not shipped with the app — 100 MB of other people's work
     /// — so the first time a theme is actually applied its pictures are pulled
     /// in the background and the desktop updates when they land.
-    private func fetchWallpapersIfMissing(_ theme: Theme) {
+    private func fetchWallpapersIfMissing(_ theme: Theme, round: Int) {
         let source = theme.directory.appendingPathComponent("source.json")
         guard theme.wallpapers.isEmpty, FileManager.default.fileExists(atPath: source.path)
         else { return }
@@ -79,10 +79,16 @@ final class ThemeStore: ObservableObject {
                 let result = try? Fetcher(library: library)
                     .refetchWallpapers(theme.slug) { url, _ in
                         guard !shown else { return }
+                        // The arbiter only knows about this process; the CLI
+                        // and a second window are other processes entirely. So
+                        // check on disk that this theme is still the active one
+                        // before painting its picture.
+                        guard library.current?.slug == theme.slug else { return }
                         shown = true
                         library.remember(wallpaper: url, for: theme)
-                        // Beats the flat colour whichever finishes first.
-                        if WallpaperArbiter.shared.claim(.photograph) {
+                        // Beats the flat colour whichever finishes first, and
+                        // loses outright if the user has moved on since.
+                        if WallpaperArbiter.shared.claim(.photograph, round: round) {
                             WallpaperIntegration().set(url)
                         }
                     }
@@ -96,7 +102,10 @@ final class ThemeStore: ObservableObject {
     }
 
     func chooseWallpaper(_ url: URL) {
-        guard let theme = current else { return }
+        // Re-read from disk: the theme may have changed from the CLI or the
+        // menu bar since this window last looked, and remembering a wallpaper
+        // against the wrong theme is how they drift apart.
+        guard let theme = library.current else { return }
         library.remember(wallpaper: url, for: theme)
         Task.detached(priority: .userInitiated) {
             WallpaperIntegration().set(url)
