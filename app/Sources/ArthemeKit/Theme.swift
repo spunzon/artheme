@@ -133,6 +133,18 @@ public struct Theme: Identifiable, Sendable {
                     .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
+    /// What the grid shows.
+    ///
+    /// Derived from the directory name rather than the theme's own `name`,
+    /// because those are wildly inconsistent — "Batou", "catppuccin",
+    /// "Osaka Jade" — and a grid where half the labels are lowercase looks
+    /// broken. The theme's own name still goes into generated files.
+    public var displayName: String {
+        slug.split(separator: "-")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+
     /// The theme's own cover image, if it has one.
     ///
     /// Omarchy themes publish a preview.png to show themselves off; artheme

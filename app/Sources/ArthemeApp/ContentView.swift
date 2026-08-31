@@ -10,7 +10,7 @@ struct ContentView: View {
     private var visible: [Theme] {
         store.themes.filter { theme in
             let matches = query.isEmpty
-                || theme.name.localizedCaseInsensitiveContains(query)
+                || theme.displayName.localizedCaseInsensitiveContains(query)
                 || theme.slug.localizedCaseInsensitiveContains(query)
             let appearance = (!onlyLight && !onlyDark)
                 || (onlyLight && theme.appearance == .light)
@@ -29,6 +29,13 @@ struct ContentView: View {
             statusBar
         }
         .frame(minWidth: 560, minHeight: 420)
+        // The CLI, the menu bar item and this window all change the same
+        // thing, so the grid re-reads the active theme whenever it comes back
+        // to the front instead of showing whatever it saw when it opened.
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification)) { _ in
+            store.reload()
+        }
     }
 
     private var toolbar: some View {
@@ -97,7 +104,7 @@ struct ContentView: View {
         HStack(spacing: 10) {
             if let current = store.current {
                 Circle().fill(current.accent.swiftUI).frame(width: 9, height: 9)
-                Text(current.name).font(.system(size: 12, weight: .medium))
+                Text(current.displayName).font(.system(size: 12, weight: .medium))
                 Text(current.appearance.rawValue).font(.caption).foregroundStyle(.secondary)
             } else {
                 Text("No theme applied").font(.caption).foregroundStyle(.secondary)

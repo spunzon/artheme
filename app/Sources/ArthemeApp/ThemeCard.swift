@@ -35,7 +35,7 @@ struct ThemeCard: View {
         .scaleEffect(hovering && !isBusy ? 1.02 : 1)
         .animation(.easeOut(duration: 0.15), value: hovering)
         .onHover { hovering = $0 }
-        .accessibilityLabel("\(theme.name), \(theme.appearance.rawValue)"
+        .accessibilityLabel("\(theme.displayName), \(theme.appearance.rawValue)"
                             + (isCurrent ? ", active" : ""))
     }
 
@@ -62,7 +62,7 @@ struct ThemeCard: View {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(theme.accent.swiftUI)
             }
-            Text(theme.name)
+            Text(theme.displayName)
                 .font(.system(size: 12, weight: isCurrent ? .semibold : .regular))
                 .foregroundStyle(theme.foreground.swiftUI)
                 .lineLimit(1)

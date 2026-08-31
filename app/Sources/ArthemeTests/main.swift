@@ -220,6 +220,28 @@ check("herdr: rewrites the custom block", herdr.contains("accent = \"#e68e0d\"")
 check("herdr: one custom block only",
       herdr.components(separatedBy: "[theme.custom]").count == 2)
 
+print("running commands")
+// The regression that made a theme switch change the wallpaper and nothing
+// else: output bigger than the 64 KB pipe buffer used to deadlock, time out
+// and come back empty, so no terminal was ever found to reload.
+let big = URL(fileURLWithPath: NSTemporaryDirectory())
+    .appendingPathComponent("artheme-big-\(UUID().uuidString).txt")
+try String(repeating: "x", count: 400_000).write(to: big, atomically: true, encoding: .utf8)
+let start = Date()
+let cat = Shell.run("/bin/cat", [big.path], timeout: 5)
+check("reads output larger than a pipe buffer",
+      cat.status == 0 && cat.out.count == 400_000, "\(cat.status), \(cat.out.count) bytes")
+check("and does not sit on the timeout", Date().timeIntervalSince(start) < 2,
+      "\(Date().timeIntervalSince(start))s")
+try? FileManager.default.removeItem(at: big)
+
+// ps is the specific caller that broke: ~77 KB on a busy machine.
+let ps = Shell.run("/bin/ps", ["-Ao", "pid=,comm="], timeout: 5)
+check("ps comes back in full", ps.status == 0 && ps.out.count > 1000, "\(ps.out.count) bytes")
+check("and its own process is in there",
+      Shell.pids(of: "launchd").contains(1) || !Shell.pids(of: "ps").isEmpty
+      || ps.out.contains("launchd"))
+
 print("the desktop arbiter")
 // Download and apply now run in parallel, so either order is possible and the
 // photograph must win both ways.

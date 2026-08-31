@@ -23,7 +23,7 @@ public struct VSCodeIntegration: Integration {
     }
     public func isWired(_ l: Library) -> Bool { Files.exists(themeFile) }
 
-    public func apply(_ theme: Theme, _ l: Library) throws -> String? {
+    public func apply(_ theme: Theme, _ l: Library) throws -> Outcome {
         // Only worth saying the first time: after that the user has picked it.
         let firstTime = !Files.exists(themeFile)
         let bg = theme.background, fg = theme.foreground, accent = theme.accent
@@ -95,8 +95,8 @@ public struct VSCodeIntegration: Integration {
 
         // VS Code loads a colour theme once per window.
         return firstTime
-            ? "VS Code: pick “Artheme” once (⇧⌘P → Color Theme), then reload the window after a switch"
-            : nil
+            ? .note("VS Code: pick “Artheme” once (⇧⌘P → Color Theme), then reload the window after a switch")
+            : .done
     }
 }
 
@@ -116,7 +116,7 @@ public struct NeovimIntegration: Integration {
     }
     public func isWired(_ l: Library) -> Bool { Files.exists(colorscheme) }
 
-    public func apply(_ theme: Theme, _ l: Library) throws -> String? {
+    public func apply(_ theme: Theme, _ l: Library) throws -> Outcome {
         let bg = theme.background, fg = theme.foreground
         let dim = bg.mixed(with: fg, 0.55)
         let panel = bg.mixed(with: fg, 0.08)
@@ -164,7 +164,7 @@ public struct NeovimIntegration: Integration {
         hl(0, "Directory",    { fg = "\(p[4].hex)" })
 
         """, to: colorscheme)
-        return nil
+        return .done
     }
 }
 
@@ -183,7 +183,7 @@ public struct ZedIntegration: Integration {
     }
     public func isWired(_ l: Library) -> Bool { Files.exists(themeFile) }
 
-    public func apply(_ theme: Theme, _ l: Library) throws -> String? {
+    public func apply(_ theme: Theme, _ l: Library) throws -> Outcome {
         let bg = theme.background, fg = theme.foreground, p = theme.palette
         let panel = bg.mixed(with: fg, 0.06)
         let border = bg.mixed(with: fg, 0.16)
@@ -229,6 +229,6 @@ public struct ZedIntegration: Integration {
             at: themeFile.deletingLastPathComponent(), withIntermediateDirectories: true)
         try JSONSerialization.data(withJSONObject: family,
                                    options: [.prettyPrinted, .sortedKeys]).write(to: themeFile)
-        return nil
+        return .done
     }
 }

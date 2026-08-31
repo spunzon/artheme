@@ -32,7 +32,7 @@ private struct MenuContent: View {
     var body: some View {
         ForEach(store.themes) { theme in
             Button { store.apply(theme) } label: {
-                Text(theme.slug == store.currentSlug ? "✓ \(theme.name)" : theme.name)
+                Text(theme.slug == store.currentSlug ? "✓ \(theme.displayName)" : theme.displayName)
             }
         }
         Divider()

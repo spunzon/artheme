@@ -29,7 +29,7 @@ public struct BtopIntegration: Integration {
         try Files.write(body, to: conf)
     }
 
-    public func apply(_ theme: Theme, _ l: Library) throws -> String? {
+    public func apply(_ theme: Theme, _ l: Library) throws -> Outcome {
         let bg = theme.background, fg = theme.foreground, p = theme.palette
         let dim = bg.mixed(with: fg, 0.45)
         // btop reads themes only at startup; a running instance keeps its colours.
@@ -80,7 +80,7 @@ public struct BtopIntegration: Integration {
         theme[process_end]="\(p[1].hex)"
 
         """, to: themeFile)
-        return nil
+        return .done
     }
 }
 
@@ -114,7 +114,7 @@ public struct TmuxIntegration: Integration {
                         to: userConfig)
     }
 
-    public func apply(_ theme: Theme, _ l: Library) throws -> String? {
+    public func apply(_ theme: Theme, _ l: Library) throws -> Outcome {
         let bg = theme.background, fg = theme.foreground, accent = theme.accent
         let panel = bg.mixed(with: fg, 0.10)
         let dim = bg.mixed(with: fg, 0.55)
@@ -141,6 +141,6 @@ public struct TmuxIntegration: Integration {
         if machine.appliesLive, let bin = Shell.which("tmux"), Shell.isRunning("tmux") {
             Shell.run(bin, ["source-file", generated(l).path], timeout: 5)
         }
-        return nil
+        return .done
     }
 }

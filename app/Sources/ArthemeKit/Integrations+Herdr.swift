@@ -17,8 +17,8 @@ public struct HerdrIntegration: Integration {
     public var isInstalled: Bool { Shell.which("herdr") != nil || Files.exists(config) }
     public func isWired(_ l: Library) -> Bool { (Files.read(config) ?? "").contains("[theme.custom]") }
 
-    public func apply(_ theme: Theme, _ l: Library) throws -> String? {
-        guard let original = Files.read(config) else { return nil }
+    public func apply(_ theme: Theme, _ l: Library) throws -> Outcome {
+        guard let original = Files.read(config) else { return .done }
         let bg = theme.background, fg = theme.foreground, p = theme.palette
 
         // Field names follow Catppuccin's, which is what herdr expects.
@@ -75,9 +75,9 @@ public struct HerdrIntegration: Integration {
         if machine.appliesLive, let bin = Shell.which("herdr"), Shell.isRunning("herdr") {
             let r = Shell.run(bin, ["server", "reload-config"])
             if r.status != 0 || !r.out.contains("\"status\":\"applied\"") {
-                return "herdr: config written, but the reload failed (restart herdr to see it)"
+                return .note("herdr: config written, but the reload failed (restart herdr to see it)")
             }
         }
-        return nil
+        return .done
     }
 }

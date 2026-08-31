@@ -42,9 +42,9 @@ public protocol Integration: Sendable {
     func isWired(_ library: Library) -> Bool
     /// Take over the app's colours. Idempotent, keeps a backup.
     func install(_ library: Library) throws
-    /// Apply a theme. Returns a note worth showing the user, or nil.
+    /// Apply a theme.
     @discardableResult
-    func apply(_ theme: Theme, _ library: Library) throws -> String?
+    func apply(_ theme: Theme, _ library: Library) throws -> Outcome
 }
 
 public extension Integration {
@@ -52,29 +52,69 @@ public extension Integration {
     func isWired(_ library: Library) -> Bool { true }
 }
 
+/// What an integration has to say when it finishes.
+///
+/// `note` is shown to the person switching themes and should be rare and
+/// actionable; `detail` only reaches generated/last-apply.log. Mixing the two
+/// is how "signalled 3 ghostty processes" ended up as a warning on every
+/// single switch.
+public struct Outcome: Sendable {
+    public var note: String?
+    public var detail: String?
+
+    public init(note: String? = nil, detail: String? = nil) {
+        self.note = note
+        self.detail = detail
+    }
+
+    public static let done = Outcome()
+    public static func note(_ text: String) -> Outcome { Outcome(note: text) }
+    public static func detail(_ text: String) -> Outcome { Outcome(detail: text) }
+}
+
 // MARK: - Shared helpers
 
 public enum Shell {
-    /// Run a command with a deadline. A helper that hangs must never stop a
-    /// theme switch: the terminal repaint is what the user is looking at.
+    /// Run a command with a deadline, returning its standard output.
+    ///
+    /// The pipe is drained WHILE the process runs. Reading it only after
+    /// waiting for exit deadlocks as soon as the output fills the 64 KB pipe
+    /// buffer: the child blocks writing, never exits, the deadline expires and
+    /// the caller gets nothing back. `ps -Ao pid=,comm=` on a busy Mac is about
+    /// 77 KB — which is exactly how a theme switch ended up finding no
+    /// terminal to reload, and changing the wallpaper but nothing else.
     @discardableResult
     public static func run(_ path: String, _ args: [String] = [],
                            timeout: TimeInterval = 8) -> (status: Int32, out: String) {
         guard FileManager.default.isExecutableFile(atPath: path) else { return (127, "") }
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: path)
-        p.arguments = args
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = args
         let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = Pipe()
-        do { try p.run() } catch { return (127, "") }
+        process.standardOutput = pipe
+        // Never read, so never allowed to fill a buffer of its own.
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return (127, "") }
+
+        let lock = NSLock()
+        var output = Data()
+        let drained = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            lock.lock(); output = data; lock.unlock()
+            drained.signal()
+        }
 
         let deadline = Date().addingTimeInterval(timeout)
-        while p.isRunning && Date() < deadline { usleep(20_000) }
-        if p.isRunning { p.terminate(); return (124, "") }
-
-        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
-        return (p.terminationStatus, String(data: data ?? Data(), encoding: .utf8) ?? "")
+        while process.isRunning && Date() < deadline { usleep(20_000) }
+        if process.isRunning {
+            process.terminate()
+            _ = drained.wait(timeout: .now() + 1)
+            return (124, "")
+        }
+        _ = drained.wait(timeout: .now() + 2)
+        lock.lock(); defer { lock.unlock() }
+        return (process.terminationStatus, String(data: output, encoding: .utf8) ?? "")
     }
 
     /// Look for an executable the way a login shell would, plus the usual

@@ -40,16 +40,47 @@ public struct Switcher: Sendable {
     public func apply(_ theme: Theme) throws -> [String] {
         try library.ensureDirectories()
         var notes: [String] = []
-        for integration in integrations where integration.isInstalled {
+        var log: [String] = []
+        for integration in integrations {
+            guard integration.isInstalled else {
+                log.append("\(integration.id): not installed")
+                continue
+            }
+            let started = Date()
             do {
-                if let note = try integration.apply(theme, library) { notes.append(note) }
+                let outcome = try integration.apply(theme, library)
+                let ms = Int(Date().timeIntervalSince(started) * 1000)
+                let said = [outcome.detail, outcome.note].compactMap { $0 }.joined(separator: " · ")
+                log.append("\(integration.id): ok \(ms)ms" + (said.isEmpty ? "" : " — \(said)"))
+                if let note = outcome.note { notes.append(note) }
             } catch {
                 // One failing integration must never abort the rest.
+                log.append("\(integration.id): FAILED \(error.localizedDescription)")
                 notes.append("\(integration.name): \(error.localizedDescription)")
             }
         }
         try library.setCurrent(theme)
+        record(theme, log)
         return notes
+    }
+
+    /// A line per switch in generated/last-apply.log: which integrations ran,
+    /// how long each took and what it said. Without it a theme that changes the
+    /// wallpaper but not the terminal is impossible to tell apart from one that
+    /// never reached the terminal at all.
+    private func record(_ theme: Theme, _ log: [String]) {
+        let stamp = DateFormatter()
+        stamp.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let line = "\(stamp.string(from: Date())) \(theme.slug)\n"
+            + log.map { "    \($0)" }.joined(separator: "\n") + "\n"
+        let file = library.generated.appendingPathComponent("last-apply.log")
+        if let handle = try? FileHandle(forWritingTo: file) {
+            handle.seekToEndOfFile()
+            handle.write(Data(line.utf8))
+            try? handle.close()
+        } else {
+            try? line.write(to: file, atomically: true, encoding: .utf8)
+        }
     }
 
     public func install() throws {
