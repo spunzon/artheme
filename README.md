@@ -47,7 +47,9 @@ that has no macOS equivalent.
 
 ## Install
 
-Download `Artheme.app`, drag it to Applications, open it. It is not notarised
+Download `Artheme.app` from the
+[latest release](https://github.com/spunzon/artheme/releases/latest), drag it
+to Applications, open it. It is not notarised
 yet, so the first time macOS will say the developer cannot be verified: go to
 **System Settings → Privacy & Security** and press **Open Anyway**.
 
@@ -75,7 +77,7 @@ it.
 Needs the Command Line Tools (`xcode-select --install`) and nothing else:
 
 ```bash
-git clone https://github.com/<you>/artheme ~/projects/artheme
+git clone https://github.com/spunzon/artheme ~/projects/artheme
 cd ~/projects/artheme/app
 ./Scripts/bundle.sh            # builds Artheme.app and a zip, universal
 swift run ArthemeTests         # 44 checks
