@@ -291,6 +291,15 @@ if let walker = FileManager.default.enumerator(at: machine2.home, includingPrope
 }
 check("no command substitution in any generated file", dirty.isEmpty, dirty.joined(separator: ", "))
 
+print("update version comparison")
+check("a higher patch is newer", Updater.isNewer("0.1.2", than: "0.1.1"))
+check("a higher minor is newer even with a lower patch", Updater.isNewer("0.2.0", than: "0.1.9"))
+check("double digits sort numerically, not lexically", Updater.isNewer("0.1.10", than: "0.1.9"))
+check("equal is not newer", !Updater.isNewer("0.1.1", than: "0.1.1"))
+check("older is not newer", !Updater.isNewer("0.1.0", than: "0.1.1"))
+check("a short version pads with zeros", Updater.isNewer("0.2", than: "0.1.9"))
+check("non-numeric is never newer", !Updater.isNewer("dev", than: "0.1.0"))
+
 print()
 if failures.isEmpty { print("all good") } else {
     print("\(failures.count) failing: \(failures.joined(separator: ", "))")

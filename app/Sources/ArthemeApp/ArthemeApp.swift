@@ -15,6 +15,9 @@ struct ArthemeApp: App {
                 Button("Next Theme") { store.next() }
                     .keyboardShortcut("n", modifiers: [.command, .option])
             }
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { Task { await store.checkForUpdates() } }
+            }
         }
 
         // The menu bar item is the point of the app: switching without opening

@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var onlyLight = false
     @State private var onlyDark = false
     @State private var showingAdd = false
+    @State private var showingUpdateConfirm = false
 
     private var visible: [Theme] {
         store.themes.filter { theme in
@@ -23,6 +24,7 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
+            updateBanner
             Divider()
             grid
             if !store.notes.isEmpty { notes }
@@ -63,6 +65,42 @@ struct ContentView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    /// Only shown once a check has actually found something newer — silent
+    /// otherwise, so a Mac offline or behind on the daily check never sees a
+    /// permanent "checking…" row.
+    @ViewBuilder private var updateBanner: some View {
+        if let release = store.availableUpdate {
+            VStack(spacing: 0) {
+                Divider()
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.down.circle.fill").foregroundStyle(.tint)
+                    Text("Artheme \(release.version) está disponible")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    if store.updateBusy {
+                        ProgressView().controlSize(.small)
+                        Text("instalando…").font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Button("Actualizar") { showingUpdateConfirm = true }
+                            .controlSize(.small)
+                        if let error = store.updateError {
+                            Label(error, systemImage: "exclamationmark.triangle")
+                                .font(.caption).foregroundStyle(.red)
+                        }
+                    }
+                }
+                .padding(.horizontal, 14).padding(.vertical, 8)
+            }
+            .alert("Actualizar a la versión \(release.version)",
+                  isPresented: $showingUpdateConfirm) {
+                Button("Actualizar y reiniciar") { Task { await store.installUpdate() } }
+                Button("Cancelar", role: .cancel) {}
+            } message: {
+                Text("Artheme se cerrará y volverá a abrirse automáticamente con la nueva versión.")
+            }
+        }
     }
 
     private var grid: some View {

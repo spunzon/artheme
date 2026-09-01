@@ -20,9 +20,15 @@ final class ThemeStore: ObservableObject {
     @Published var addBusy = false
     @Published var addError: String?
 
+    /// State for self-updating.
+    @Published private(set) var availableUpdate: Updater.Release?
+    @Published var updateBusy = false
+    @Published var updateError: String?
+
     private let library = Library()
     private lazy var switcher = Switcher(library: library)
     private lazy var fetcher = Fetcher(library: library)
+    private let updater = Updater()
 
     init() {
         // A downloaded app starts with an empty ~/.config/artheme, so the
@@ -31,6 +37,7 @@ final class ThemeStore: ObservableObject {
             library.seed(from: bundled)
         }
         reload()
+        checkForUpdatesIfDue()
     }
 
     func reload() {
@@ -233,5 +240,54 @@ final class ThemeStore: ObservableObject {
             }
             try? FileManager.default.copyItem(at: url, to: candidate)
         }
+    }
+
+    // MARK: - Self-update
+
+    var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+    }
+
+    private static let lastCheckKey = "artheme.lastUpdateCheck"
+
+    /// Silent, and at most once a day — a GUI app that pings GitHub on every
+    /// launch is how you get personally rate-limited by your own project.
+    private func checkForUpdatesIfDue() {
+        let last = UserDefaults.standard.double(forKey: Self.lastCheckKey)
+        guard Date().timeIntervalSince1970 - last > 86400 else { return }
+        Task { await checkForUpdates(silent: true) }
+    }
+
+    /// `silent: true` never surfaces a network error — used for the automatic
+    /// daily check, where "GitHub was unreachable" is not worth interrupting
+    /// anyone over. The menu's "Check for Updates…" passes `false`.
+    func checkForUpdates(silent: Bool = false) async {
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.lastCheckKey)
+        let version = appVersion
+        do {
+            let release = try await Task.detached(priority: .background) { [updater] in
+                try updater.checkForUpdate(current: version)
+            }.value
+            availableUpdate = release
+            if !silent { updateError = nil }
+        } catch {
+            if !silent { updateError = error.localizedDescription }
+        }
+    }
+
+    /// Downloads and installs `availableUpdate`, then relaunches — this call
+    /// does not return on success.
+    func installUpdate() async {
+        guard let release = availableUpdate, !updateBusy else { return }
+        updateBusy = true
+        updateError = nil
+        do {
+            try await Task.detached(priority: .userInitiated) { [updater] in
+                try updater.install(release)
+            }.value
+        } catch {
+            updateError = error.localizedDescription
+        }
+        updateBusy = false
     }
 }

@@ -67,6 +67,14 @@ artheme install       # wires up whatever apps you have
 artheme doctor        # check what it found
 ```
 
+The app checks GitHub for a newer release once a day and shows a banner when
+one is out — press **Actualizar** and it downloads, replaces itself and
+relaunches, no browser round-trip. **App → Check for Updates…** does the same
+on demand. There is no appcast or signing key: it fetches the same ad-hoc
+signed zip a manual download would, over `URLSession` rather than a browser,
+so it never picks up the quarantine flag that would otherwise trigger the
+"unidentified developer" prompt a second time.
+
 `artheme install` only appends: one line to Ghostty's or kitty's config, a shim
 for SketchyBar's `colors.sh`, a `source-file` for tmux. Everything it takes over
 is backed up as `<file>.artheme-bak`, and `artheme restore --yes` undoes all of
@@ -80,7 +88,7 @@ Needs the Command Line Tools (`xcode-select --install`) and nothing else:
 git clone https://github.com/spunzon/artheme ~/projects/artheme
 cd ~/projects/artheme/app
 ./Scripts/bundle.sh            # builds Artheme.app and a zip, universal
-swift run ArthemeTests         # 44 checks
+swift run ArthemeTests         # 51 checks
 ```
 
 The CLI lives inside the bundle; `artheme install-cli` puts it on your PATH.
@@ -228,7 +236,7 @@ from a stranger's repository, and `install` still edits your app configs. Read
 `bin/theme` before trusting it — it is one file.
 
 ```bash
-cd app && swift run ArthemeTests   # 44 checks: the core and all 15 integrations
+cd app && swift run ArthemeTests   # 51 checks: the core, all 15 integrations, and the updater
 ```
 
 Integrations write through an injectable `Machine`, so the tests point a whole
