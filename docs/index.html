@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Artheme — temas al estilo Omarchy para macOS</title>
 <meta name="description" content="Un colors.toml controla la terminal, la barra, los bordes de ventana, el wallpaper y el modo claro/oscuro de macOS, todos a la vez.">
-<link rel="icon" href="data:,">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <style>
   :root {
     color-scheme: dark;
@@ -36,11 +37,11 @@
       var(--bg);
     border-bottom: 1px solid var(--border);
   }
-  .mark {
-    display: inline-flex; gap: 6px; margin-bottom: 22px;
-  }
-  .mark span {
-    width: 14px; height: 14px; border-radius: 4px;
+  .app-icon {
+    width: 96px; height: 96px;
+    margin-bottom: 18px;
+    border-radius: 22px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.35);
   }
   h1 {
     font-size: clamp(2rem, 5vw, 2.9rem);
@@ -171,13 +172,7 @@
 
 <header class="hero">
   <div class="wrap">
-    <div class="mark" aria-hidden="true">
-      <span style="background:#e06c75"></span>
-      <span style="background:#e9b872"></span>
-      <span style="background:#7dd3c0"></span>
-      <span style="background:#61afef"></span>
-      <span style="background:#c678dd"></span>
-    </div>
+    <img class="app-icon" src="icon.png" width="96" height="96" alt="Icono de Artheme">
     <h1>Artheme</h1>
     <p class="tagline">
       Temas al estilo <a href="https://omarchy.org">Omarchy</a> para macOS. Un
