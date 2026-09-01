@@ -241,13 +241,7 @@ public struct WallpaperIntegration: Integration {
     /// WallpaperAgent's index and restart it.
     @discardableResult
     public func set(_ image: URL) -> String? {
-        guard Files.exists(index) else {
-            let rc = Shell.osascript("""
-            tell application "System Events" to tell every desktop \
-            to set picture to POSIX file \(Shell.applescriptString(image.path))
-            """)
-            return rc == 0 ? nil : "wallpaper: not applied"
-        }
+        guard Files.exists(index) else { return setViaAppleScript(image) }
         Files.backup(index)
         guard let data = try? Data(contentsOf: index),
               let plist = try? PropertyListSerialization.propertyList(
@@ -261,7 +255,19 @@ public struct WallpaperIntegration: Integration {
         guard let configuration else { return "wallpaper: could not encode the choice" }
 
         let changed = Self.retarget(plist as AnyObject, with: configuration)
-        guard changed > 0 else { return "wallpaper: no image entry to repoint" }
+        guard changed > 0 else {
+            // Nothing to repoint — every Space is on a Dynamic Desktop, a
+            // slideshow or some other non-"image" choice (the default on a
+            // Mac nobody has pointed at a still picture yet), so there is no
+            // `com.apple.wallpaper.choice.image` entry for `retarget` to find.
+            // AppleScript can still put the picture up on the Space that is
+            // actually visible, even though — unlike the index rewrite — it
+            // cannot reach every other Space at once.
+            guard setViaAppleScript(image) == nil else { return "wallpaper: no image entry to repoint" }
+            return "wallpaper: set the visible Space only — the rest are on a "
+                 + "dynamic or slideshow wallpaper, not a plain image, so there was "
+                 + "nothing to repoint"
+        }
         guard let out = try? PropertyListSerialization.data(
             fromPropertyList: plist, format: .binary, options: 0),
               (try? out.write(to: index)) != nil
@@ -278,6 +284,17 @@ public struct WallpaperIntegration: Integration {
             Shell.run("/usr/bin/killall", ["WallpaperAgent"], timeout: 5)
         }
         return nil
+    }
+
+    /// Only reaches the active Space of each display — Mission Control's
+    /// other Spaces keep whatever they had. Used when there is no index to
+    /// rewrite, and as a fallback when the index has nothing to repoint.
+    private func setViaAppleScript(_ image: URL) -> String? {
+        let rc = Shell.osascript("""
+        tell application "System Events" to tell every desktop \
+        to set picture to POSIX file \(Shell.applescriptString(image.path))
+        """)
+        return rc == 0 ? nil : "wallpaper: not applied"
     }
 
     /// Does the stored index actually reference this image?
