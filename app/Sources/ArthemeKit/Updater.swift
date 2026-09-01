@@ -20,7 +20,8 @@ public struct Updater: Sendable {
 
     public enum UpdateError: LocalizedError {
         case http(Int), noZipAsset, badPayload, transport(String)
-        case appNotBundled, installFailed(String)
+        case insecureURL(String), tooBig(String)
+        case appNotBundled, installFailed(String), corruptDownload(String)
 
         public var errorDescription: String? {
             switch self {
@@ -28,11 +29,18 @@ public struct Updater: Sendable {
             case .noZipAsset: return "the latest release has no .zip asset"
             case .badPayload: return "could not read the release info"
             case .transport(let m): return "could not reach GitHub (\(m))"
+            case .insecureURL(let u): return "refusing a non-https download URL: \(u)"
+            case .tooBig(let m): return "\(m) is larger than expected for a release download"
             case .appNotBundled: return "not running from an installed .app — nothing to replace"
             case .installFailed(let m): return "could not install the update: \(m)"
+            case .corruptDownload(let m): return "the downloaded app failed verification: \(m)"
             }
         }
     }
+
+    /// Nothing this project ships is anywhere near this size; a response
+    /// claiming to be belongs to something other than a release zip.
+    static let maxDownload = 100 * 1024 * 1024
 
     // MARK: - Checking
 
@@ -105,6 +113,8 @@ public struct Updater: Sendable {
             at: unpacked, includingPropertiesForKeys: nil))?.first(where: { $0.pathExtension == "app" })
         else { throw UpdateError.installFailed("the download did not contain an .app") }
 
+        try verify(newApp)
+
         // Never sit on the file the running process is executing from.
         let staged = scratch.appendingPathComponent(appURL.lastPathComponent)
         try FileManager.default.moveItem(at: newApp, to: staged)
@@ -136,6 +146,28 @@ public struct Updater: Sendable {
         exit(0)
     }
 
+    /// Catches a corrupted or tampered download before it replaces a working
+    /// install: the signature must still be intact — ad-hoc or not, that
+    /// detects any change to the bundle since `bundle.sh` signed it — and the
+    /// bundle identifier must be the app this process actually is, so a zip
+    /// that happens to contain some other `.app` can't get installed in its
+    /// place.
+    private func verify(_ app: URL) throws {
+        do {
+            try run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path])
+        } catch {
+            throw UpdateError.corruptDownload("signature check failed — \(error.localizedDescription)")
+        }
+        guard let plist = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")),
+              let downloadedID = plist["CFBundleIdentifier"] as? String
+        else { throw UpdateError.corruptDownload("no Info.plist in the downloaded app") }
+        let ownID = Bundle.main.bundleIdentifier
+        guard ownID == nil || downloadedID == ownID else {
+            throw UpdateError.corruptDownload(
+                "bundle id \(downloadedID) does not match the running app (\(ownID ?? "?"))")
+        }
+    }
+
     // MARK: - Plumbing
 
     @discardableResult
@@ -155,8 +187,15 @@ public struct Updater: Sendable {
     }
 
     private func download(_ url: URL, to destination: URL) throws {
+        guard url.scheme == "https" else { throw UpdateError.insecureURL(url.absoluteString) }
         let (data, response) = try send(URLRequest(url: url))
         guard response.statusCode == 200 else { throw UpdateError.http(response.statusCode) }
+        // Checked after the fact, not via a Content-Length header: a server
+        // is free to omit or lie about it, so the actual byte count is the
+        // only number worth trusting.
+        guard data.count <= Self.maxDownload else {
+            throw UpdateError.tooBig("\(url.lastPathComponent) (\(data.count / 1024 / 1024) MB)")
+        }
         try data.write(to: destination)
     }
 
