@@ -10,230 +10,445 @@
 <style>
   :root {
     color-scheme: dark;
-    --bg: #0f1115;
-    --panel: #171a21;
-    --panel-2: #1e222b;
-    --border: #2a2f3a;
-    --fg: #e7e9ee;
-    --dim: #9aa1b0;
-    --accent: #7dd3c0;
-    --accent-2: #e9b872;
+    --bg: #000;
+    --fg: #f2f2f2;
+    --body: #9a9a9c;
+    --dim: #6c6c70;
+    --line: rgba(255,255,255,0.09);
+    --line-soft: rgba(255,255,255,0.05);
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
   }
   * { box-sizing: border-box; }
+  html { background: var(--bg); }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--fg);
-    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", Helvetica, Arial, sans-serif;
+    font: 16px/1.6 var(--font);
+    -webkit-font-smoothing: antialiased;
   }
-  a { color: var(--accent); }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
-
-  header.hero {
-    padding: 88px 0 56px;
-    text-align: center;
-    background:
-      radial-gradient(600px 300px at 50% -10%, rgba(125,211,192,0.14), transparent 60%),
-      var(--bg);
-    border-bottom: 1px solid var(--border);
-  }
-  .app-icon {
-    width: 96px; height: 96px;
-    margin-bottom: 18px;
-    border-radius: 22px;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.35);
-  }
-  h1 {
-    font-size: clamp(2rem, 5vw, 2.9rem);
-    margin: 0 0 14px;
-    letter-spacing: -0.02em;
-  }
-  .tagline {
-    color: var(--dim);
-    font-size: 1.15rem;
-    max-width: 560px;
-    margin: 0 auto 34px;
-  }
-  code {
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 0.15em 0.5em;
-    font-size: 0.92em;
-  }
-
-  .cta-row {
-    display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
-  }
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 13px 22px;
-    border-radius: 10px;
-    text-decoration: none;
+  a { color: inherit; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 28px; }
+  .eyebrow {
+    font-size: 0.72rem;
     font-weight: 600;
-    font-size: 0.98rem;
-    border: 1px solid transparent;
-    transition: transform .12s ease, background .12s ease;
-  }
-  .btn:hover { transform: translateY(-1px); }
-  .btn-primary {
-    background: var(--accent);
-    color: #0c1512;
-  }
-  .btn-secondary {
-    background: transparent;
-    color: var(--fg);
-    border-color: var(--border);
-  }
-  .btn-secondary:hover { background: var(--panel-2); }
-  .btn small { font-weight: 400; opacity: 0.75; }
-
-  .note {
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
     color: var(--dim);
+  }
+  .arrow-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg);
+  }
+  .arrow-link .rule {
+    width: 34px; height: 1px;
+    background: var(--fg);
+    transition: width .25s cubic-bezier(.16,1,.3,1);
+  }
+  .arrow-link:hover .rule { width: 50px; }
+
+  /* ---------- nav ---------- */
+  nav.top {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    padding: 30px 0;
+  }
+  nav.top .brand {
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none;
     font-size: 0.85rem;
-    margin-top: 16px;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--fg);
+  }
+  nav.top .brand img { width: 22px; height: 22px; border-radius: 6px; display: block; }
+  nav.top .links {
+    margin-left: auto;
+    display: flex; gap: 30px;
+  }
+  nav.top .links a {
+    text-decoration: none;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--body);
+    transition: color .2s ease;
+  }
+  nav.top .links a:hover { color: var(--fg); }
+
+  /* ---------- hero ---------- */
+  header.hero {
+    position: relative;
+    overflow: hidden;
+    padding-bottom: 90px;
+  }
+  .hero-glow {
+    position: absolute;
+    top: -280px; left: 50%;
+    transform: translateX(-50%);
+    width: 1100px; height: 620px;
+    background: radial-gradient(closest-side, rgba(125,211,192,0.16), rgba(125,211,192,0) 72%);
+    pointer-events: none;
+    filter: blur(4px);
+  }
+  .hero-body { position: relative; padding-top: 64px; }
+  h1.headline {
+    margin: 0 0 26px;
+    font-size: clamp(2.6rem, 6.4vw, 4.6rem);
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    max-width: 780px;
+  }
+  h1.headline .accent { color: #7dd3c0; }
+  p.lede {
+    color: var(--body);
+    font-size: 1.15rem;
+    max-width: 520px;
+    margin: 0 0 40px;
+  }
+  p.lede code {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 0.1em 0.45em;
+    font-family: var(--mono);
+    font-size: 0.9em;
+    color: var(--fg);
+  }
+  .hero-ctas { display: flex; align-items: center; gap: 30px; flex-wrap: wrap; }
+  .btn-solid {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--fg);
+    color: #000;
+    text-decoration: none;
+    padding: 14px 24px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: transform .15s ease, opacity .15s ease;
+  }
+  .btn-solid:hover { transform: translateY(-1px); opacity: 0.92; }
+  .platform-note {
+    margin-top: 18px;
+    color: var(--dim);
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
   }
 
-  main { padding: 56px 0; }
-
-  .shot {
+  /* ---------- showcase frame ---------- */
+  .showcase {
+    margin-top: 70px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: #050505;
+    padding: 10px;
+    box-shadow: 0 40px 100px -30px rgba(0,0,0,0.9);
+  }
+  .showcase .chrome {
+    display: flex; gap: 6px;
+    padding: 10px 8px 14px;
+  }
+  .showcase .chrome span {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: rgba(255,255,255,0.14);
+  }
+  .showcase img {
     display: block;
     width: 100%;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    margin: 0 0 56px;
+    border-radius: 8px;
   }
 
-  section.pitch {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-    margin-bottom: 56px;
+  /* ---------- numbered sections ---------- */
+  section.index {
+    padding: 130px 0 70px;
+    border-top: 1px solid var(--line-soft);
   }
-  @media (max-width: 680px) { section.pitch { grid-template-columns: 1fr; } }
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-  }
-  .card h3 {
-    margin: 0 0 8px;
-    font-size: 1rem;
-  }
-  .card p {
-    margin: 0;
-    color: var(--dim);
-    font-size: 0.92rem;
-  }
-
-  h2 {
-    font-size: 1.35rem;
-    margin: 0 0 18px;
+  .index-head { margin-bottom: 64px; }
+  .index-head h2 {
+    margin: 18px 0 0;
+    font-size: clamp(1.8rem, 3.4vw, 2.4rem);
+    font-weight: 600;
     letter-spacing: -0.01em;
+    max-width: 560px;
+  }
+  .rows { display: flex; flex-direction: column; }
+  .row {
+    display: grid;
+    grid-template-columns: 90px 1.1fr 1.6fr;
+    gap: 32px;
+    padding: 30px 0;
+    border-top: 1px solid var(--line);
+    align-items: baseline;
+  }
+  .row:last-child { border-bottom: 1px solid var(--line); }
+  .row .num {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--dim);
+  }
+  .row h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  .row p {
+    margin: 0;
+    color: var(--body);
+    font-size: 0.95rem;
+    max-width: 46ch;
+  }
+  @media (max-width: 720px) {
+    .row { grid-template-columns: 40px 1fr; }
+    .row p { grid-column: 2; }
   }
 
+  /* ---------- integrations table ---------- */
+  .matrix { padding: 70px 0 40px; border-top: 1px solid var(--line-soft); }
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 56px;
-    font-size: 0.92rem;
+    font-size: 0.9rem;
   }
   th, td {
     text-align: left;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
+    padding: 13px 4px;
+    border-bottom: 1px solid var(--line);
+    font-weight: 400;
   }
-  th { color: var(--dim); font-weight: 500; }
-  td:last-child, th:last-child { color: var(--dim); }
+  th {
+    color: var(--dim);
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  td:last-child, th:last-child { color: var(--body); text-align: right; }
 
+  /* ---------- install ---------- */
+  .install { padding: 70px 0; border-top: 1px solid var(--line-soft); }
   pre {
-    background: var(--panel);
-    border: 1px solid var(--border);
+    margin: 24px 0 0;
+    background: #070707;
+    border: 1px solid var(--line);
     border-radius: 10px;
-    padding: 18px 20px;
+    padding: 22px 24px;
     overflow-x: auto;
-    font-size: 0.88rem;
-    line-height: 1.6;
+    font-family: var(--mono);
+    font-size: 0.86rem;
+    line-height: 1.8;
+    color: #d7d7d9;
   }
-  pre code { background: none; border: none; padding: 0; }
+  pre .c { color: var(--dim); }
+
+  /* ---------- closing CTA with horizon glow ---------- */
+  section.cta {
+    position: relative;
+    margin-top: 60px;
+    padding: 160px 0 0;
+    overflow: hidden;
+    text-align: center;
+  }
+  .cta h2 {
+    position: relative; z-index: 1;
+    margin: 0 auto 16px;
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    max-width: 640px;
+  }
+  .cta p {
+    position: relative; z-index: 1;
+    color: var(--body);
+    margin: 0 0 34px;
+  }
+  .cta .arrow-link { position: relative; z-index: 1; justify-content: center; }
+  .horizon {
+    position: relative;
+    height: 260px;
+    margin-top: 70px;
+  }
+  .horizon::before {
+    content: "";
+    position: absolute;
+    left: 50%; top: 0;
+    transform: translateX(-50%);
+    width: 3px; height: 130px;
+    background: linear-gradient(to bottom, rgba(255,255,255,0), #fff);
+    filter: blur(0.5px);
+    box-shadow: 0 0 40px 6px rgba(255,255,255,0.5);
+  }
+  .horizon::after {
+    content: "";
+    position: absolute;
+    left: 50%; top: 128px;
+    transform: translateX(-50%);
+    width: 1500px; max-width: 240vw; height: 750px;
+    border-radius: 50%;
+    background:
+      radial-gradient(closest-side, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.12) 40%, rgba(255,255,255,0) 68%),
+      radial-gradient(ellipse 700px 60px at 50% 0%, rgba(255,255,255,0.9), rgba(255,255,255,0) 70%);
+    box-shadow: 0 -1px 0 rgba(255,255,255,0.95), 0 -18px 60px 10px rgba(255,255,255,0.14);
+  }
 
   footer {
-    border-top: 1px solid var(--border);
-    padding: 28px 0 48px;
-    color: var(--dim);
-    font-size: 0.88rem;
+    position: relative; z-index: 1;
+    border-top: 1px solid var(--line-soft);
+    padding: 26px 0 40px;
+    display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
   }
-  footer a { color: var(--dim); text-decoration: underline; }
+  footer .brand {
+    font-size: 0.72rem; font-weight: 600;
+    letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--fg);
+  }
+  footer .links { display: flex; gap: 22px; margin-left: auto; }
+  footer a {
+    text-decoration: none;
+    color: var(--body);
+    font-size: 0.78rem;
+  }
   footer a:hover { color: var(--fg); }
+  footer .copy { color: var(--dim); font-size: 0.78rem; }
 </style>
 </head>
 <body>
 
-<header class="hero">
-  <div class="wrap">
-    <img class="app-icon" src="icon.png" width="96" height="96" alt="Icono de Artheme">
-    <h1>Artheme</h1>
-    <p class="tagline">
-      Temas al estilo <a href="https://omarchy.org">Omarchy</a> para macOS. Un
-      <code>colors.toml</code> cambia la terminal, la barra, los bordes de
-      ventana, el wallpaper y el modo claro/oscuro — todo a la vez.
+<div class="wrap">
+  <nav class="top">
+    <a class="brand" href="#top"><img src="icon.png" alt=""> Artheme</a>
+    <div class="links">
+      <a href="#hace">Qué cambia</a>
+      <a href="#instalar">Instalar</a>
+      <a href="https://github.com/spunzon/artheme">GitHub</a>
+    </div>
+  </nav>
+</div>
+
+<header class="hero" id="top">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="wrap hero-body">
+    <p class="eyebrow">macOS · código abierto</p>
+    <h1 class="headline">Un tema.<br>Todo tu escritorio<span class="accent">,</span> a la vez.</h1>
+    <p class="lede">
+      Artheme lleva la idea de <a href="https://omarchy.org">Omarchy</a> a macOS:
+      un <code>colors.toml</code> cambia la terminal, la barra, los bordes de
+      ventana, el wallpaper y el modo claro/oscuro del sistema, todo con un
+      único gesto.
     </p>
-    <div class="cta-row">
-      <a class="btn btn-primary" href="https://github.com/spunzon/artheme/releases/latest">
-        ⬇ Descargar Artheme.app
+    <div class="hero-ctas">
+      <a class="btn-solid" href="https://github.com/spunzon/artheme/releases/latest">
+        Descargar Artheme.app
       </a>
-      <a class="btn btn-secondary" href="https://github.com/spunzon/artheme">
-        Ver el código en GitHub
+      <a class="arrow-link" href="https://github.com/spunzon/artheme">
+        Ver el código <span class="rule"></span>
       </a>
     </div>
-    <p class="note">
-      macOS 13+, universal (Apple Silicon e Intel). Gratis y de código abierto.
-    </p>
+    <p class="platform-note">macOS 13+ · universal, Apple Silicon e Intel · gratis</p>
+
+    <div class="showcase">
+      <div class="chrome"><span></span><span></span><span></span></div>
+      <img src="demo.gif" alt="Cambiando entre los temas batou, osaka-jade y pissarro en Artheme">
+    </div>
   </div>
 </header>
 
-<main class="wrap">
-  <img class="shot" src="demo.gif" alt="Cambiando entre los temas batou, osaka-jade y pissarro en Artheme">
-
-  <section class="pitch">
-    <div class="card">
-      <h3>Un solo comando</h3>
-      <p><code>theme osaka-jade</code> y cambia todo: no vas app por app tocando 12 configuraciones distintas.</p>
+<section class="index" id="hace">
+  <div class="wrap">
+    <div class="index-head">
+      <p class="eyebrow">Por qué</p>
+      <h2>Menos tiempo ajustando apps, más tiempo mirando la pantalla.</h2>
     </div>
-    <div class="card">
-      <h3>Compatible con Omarchy</h3>
-      <p>No comparte código con Omarchy, pero sí su formato — la mayoría de sus temas funcionan aquí sin tocarlos.</p>
+    <div class="rows">
+      <div class="row">
+        <span class="num">01</span>
+        <h3>Un solo comando</h3>
+        <p><code>theme osaka-jade</code> y cambia todo — no vas app por app tocando doce configuraciones distintas.</p>
+      </div>
+      <div class="row">
+        <span class="num">02</span>
+        <h3>Compatible con Omarchy</h3>
+        <p>No comparte código con Omarchy, pero sí su formato — la mayoría de sus temas funcionan aquí sin tocarlos.</p>
+      </div>
+      <div class="row">
+        <span class="num">03</span>
+        <h3>Nada que instalar aparte</h3>
+        <p>Sin Python, sin Homebrew, sin runtime. La app trae 24 temas listos y el CLI vive dentro del bundle.</p>
+      </div>
+      <div class="row">
+        <span class="num">04</span>
+        <h3>Crea los tuyos desde la app</h3>
+        <p>Trae uno de un repositorio o constrúyelo a mano, con selector de color y vista previa en vivo.</p>
+      </div>
     </div>
-    <div class="card">
-      <h3>Nada que instalar aparte</h3>
-      <p>Sin Python, sin Homebrew, sin runtime. La app trae 24 temas listos y el CLI vive dentro del bundle.</p>
+  </div>
+</section>
+
+<section class="matrix">
+  <div class="wrap">
+    <p class="eyebrow" style="margin-bottom:18px">Qué cambia al cambiar de tema</p>
+    <table>
+      <tr><th>App</th><th>Cómo</th></tr>
+      <tr><td>Ghostty, kitty, Alacritty, WezTerm, iTerm2</td><td>en vivo, sin reiniciar</td></tr>
+      <tr><td>SketchyBar, JankyBorders, herdr</td><td>en vivo</td></tr>
+      <tr><td>Fondo de escritorio</td><td>todos los Spaces y pantallas</td></tr>
+      <tr><td>Modo claro/oscuro del sistema</td><td>sigue al tema</td></tr>
+      <tr><td>VS Code, Neovim, Zed, btop, tmux</td><td>al aplicar / recargar</td></tr>
+    </table>
+  </div>
+</section>
+
+<section class="install" id="instalar">
+  <div class="wrap">
+    <p class="eyebrow" style="margin-bottom:8px">Instalación</p>
+    <h2 style="margin:0;font-size:1.5rem;font-weight:600;">Arrastra, abre, y ya.</h2>
+    <pre><code><span class="c"># conecta lo que tengas instalado</span>
+artheme install
+<span class="c"># comprueba qué encontró</span>
+artheme doctor
+<span class="c"># cambia de tema</span>
+artheme osaka-jade</code></pre>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="wrap">
+    <h2>Prueba tu escritorio con otro tema.</h2>
+    <p>Gratis, de código abierto, y listo en un arrastrar y soltar.</p>
+    <a class="arrow-link" href="https://github.com/spunzon/artheme/releases/latest">
+      Descargar la última versión <span class="rule"></span>
+    </a>
+  </div>
+  <div class="horizon" aria-hidden="true"></div>
+</section>
+
+<div class="wrap">
+  <footer>
+    <span class="brand">Artheme</span>
+    <div class="links">
+      <a href="https://github.com/spunzon/artheme/blob/main/CREDITS.md">Créditos</a>
+      <a href="https://omarchy.org">Omarchy</a>
+      <a href="https://github.com/spunzon/artheme">GitHub</a>
     </div>
-  </section>
-
-  <h2>Qué cambia al cambiar de tema</h2>
-  <table>
-    <tr><th>App</th><th>Cómo</th></tr>
-    <tr><td>Ghostty, kitty, Alacritty, WezTerm, iTerm2</td><td>en vivo, sin reiniciar</td></tr>
-    <tr><td>SketchyBar, JankyBorders, herdr</td><td>en vivo</td></tr>
-    <tr><td>Fondo de escritorio</td><td>todos los Spaces y pantallas</td></tr>
-    <tr><td>Modo claro/oscuro del sistema</td><td>sigue al tema</td></tr>
-    <tr><td>VS Code, Neovim, Zed, btop, tmux</td><td>al aplicar / recargar</td></tr>
-  </table>
-
-  <h2>Instalación</h2>
-  <pre><code>artheme install       # conecta lo que tengas instalado
-artheme doctor        # comprueba qué encontró
-artheme osaka-jade    # cambia de tema</code></pre>
-</main>
-
-<footer class="wrap">
-  Los temas pertenecen a sus autores — ver
-  <a href="https://github.com/spunzon/artheme/blob/main/CREDITS.md">CREDITS.md</a>.
-  La idea es de <a href="https://omarchy.org">Omarchy</a>.
-  ·
-  <a href="https://github.com/spunzon/artheme">github.com/spunzon/artheme</a>
-</footer>
+    <span class="copy">Los temas pertenecen a sus autores.</span>
+  </footer>
+</div>
 
 </body>
 </html>
