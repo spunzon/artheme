@@ -1,9 +1,22 @@
 import ArthemeKit
+import AppKit
 import SwiftUI
 
 extension ArthemeKit.Color {
     var swiftUI: SwiftUI.Color {
         SwiftUI.Color(red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255)
+    }
+}
+
+extension SwiftUI.Color {
+    /// Round-trips through `NSColor` because that is the only way SwiftUI
+    /// hands back components; the deviceRGB conversion keeps it consistent
+    /// regardless of the color picker's own colour space.
+    var artheme: ArthemeKit.Color {
+        let ns = NSColor(self).usingColorSpace(.deviceRGB) ?? NSColor(self)
+        return ArthemeKit.Color(r: Int((ns.redComponent * 255).rounded()),
+                                g: Int((ns.greenComponent * 255).rounded()),
+                                b: Int((ns.blueComponent * 255).rounded()))
     }
 }
 

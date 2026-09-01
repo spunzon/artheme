@@ -96,6 +96,7 @@ case "doctor":
                                    : (wired ? "wired" : "installed but not wired")
         print("  \(mark)  \(i.name.padding(toLength: 18, withPad: " ", startingAt: 0)) \(state)")
     }
+    print("\nlog       \(library.lastApplyLog.path)")
 
 case "install":
     try switcher.install()

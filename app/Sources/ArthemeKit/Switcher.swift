@@ -73,7 +73,7 @@ public struct Switcher: Sendable {
         stamp.dateFormat = "yyyy-MM-dd HH:mm:ss"
         let line = "\(stamp.string(from: Date())) \(theme.slug)\n"
             + log.map { "    \($0)" }.joined(separator: "\n") + "\n"
-        let file = library.generated.appendingPathComponent("last-apply.log")
+        let file = library.lastApplyLog
         if let handle = try? FileHandle(forWritingTo: file) {
             handle.seekToEndOfFile()
             handle.write(Data(line.utf8))

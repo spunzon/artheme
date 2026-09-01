@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import ArthemeKit
 import SwiftUI
@@ -14,8 +15,14 @@ final class ThemeStore: ObservableObject {
     @Published private(set) var showsProgress = false
     @Published var notes: [String] = []
 
+    /// State for the "add a theme" sheet — kept separate from `busySlug`
+    /// because adding and switching can legitimately overlap.
+    @Published var addBusy = false
+    @Published var addError: String?
+
     private let library = Library()
     private lazy var switcher = Switcher(library: library)
+    private lazy var fetcher = Fetcher(library: library)
 
     init() {
         // A downloaded app starts with an empty ~/.config/artheme, so the
@@ -32,6 +39,21 @@ final class ThemeStore: ObservableObject {
     }
 
     var current: Theme? { themes.first { $0.slug == currentSlug } }
+
+    /// One line per switch, one indented line per integration — the first
+    /// thing to ask someone for when "it applied but nothing changed".
+    var logURL: URL { library.lastApplyLog }
+
+    /// Opens the log in whatever handles `.log` (Console, TextEdit…), or
+    /// reveals it in Finder if nothing has run yet to create the file.
+    func revealLog() {
+        if FileManager.default.fileExists(atPath: logURL.path) {
+            NSWorkspace.shared.open(logURL)
+        } else {
+            try? library.ensureDirectories()
+            NSWorkspace.shared.activateFileViewerSelecting([library.generated])
+        }
+    }
 
     /// Wallpapers belonging to the active theme, for the picker.
     var wallpapers: [URL] { current?.wallpapers ?? [] }
@@ -117,5 +139,99 @@ final class ThemeStore: ObservableObject {
         guard !themes.isEmpty else { return }
         let i = themes.firstIndex { $0.slug == currentSlug }.map { ($0 + 1) % themes.count } ?? 0
         apply(themes[i])
+    }
+
+    // MARK: - Adding themes
+
+    /// Whether a theme with this slug already exists — for validating the
+    /// "add" sheet as the user types, before they hit the button and get a
+    /// generic file-system error back.
+    func isSlugTaken(_ slug: String) -> Bool {
+        themes.contains { $0.slug == slug }
+    }
+
+    /// Downloads a theme from Omarchy (`"osaka-jade"`) or a standalone repo
+    /// (`"owner/repo"`, `"owner/repo#branch"`). Runs off the main actor
+    /// because it hits the network; `addBusy`/`addError` drive the sheet.
+    func addFromRepo(_ spec: String, as alias: String?) async {
+        guard !addBusy else { return }
+        addBusy = true
+        addError = nil
+        do {
+            let slug = try await Task.detached(priority: .userInitiated) { [fetcher] in
+                try fetcher.fetch(spec, as: alias).slug
+            }.value
+            reload()
+            currentSlug = currentSlug ?? slug
+        } catch {
+            addError = error.localizedDescription
+        }
+        addBusy = false
+    }
+
+    static let maxWallpaperImport = 12 * 1024 * 1024   // matches Fetcher's own cap
+    static let importableImages: Set<String> = ["jpg", "jpeg", "png", "heic", "webp"]
+
+    /// Writes a hand-built `colors.toml` under a new slug, copies in any
+    /// chosen wallpapers, and reloads. `entries` is ordered so the file reads
+    /// the way a person would write it; duplicate keys are the caller's
+    /// mistake, not something to guard here.
+    @discardableResult
+    func addManualTheme(name: String, slug: String,
+                        entries: [(String, String)],
+                        wallpapers: [URL] = []) -> Bool {
+        guard let destination = Paths.safeChild(of: library.themesDirectory, named: slug) else {
+            addError = "'\(slug)' is not a valid theme name"
+            return false
+        }
+        guard !isSlugTaken(slug), !FileManager.default.fileExists(atPath: destination.path) else {
+            addError = "a theme named '\(slug)' already exists"
+            return false
+        }
+        // The name reaches a `key = "value"` line verbatim, so strip whatever
+        // would break out of the quotes — Theme.load does the same on read,
+        // but a broken write is still a broken file.
+        let safeName = name.filter { $0 != "\"" && $0 != "\\" && !$0.isNewline }
+        do {
+            try library.ensureDirectories()
+            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+            var lines = ["name = \"\(safeName)\""]
+            lines += entries.map { "\($0.0) = \"\($0.1)\"" }
+            try (lines.joined(separator: "\n") + "\n")
+                .write(to: destination.appendingPathComponent("colors.toml"),
+                       atomically: true, encoding: .utf8)
+            try copyWallpapers(wallpapers, into: destination)
+        } catch {
+            addError = error.localizedDescription
+            try? FileManager.default.removeItem(at: destination)
+            return false
+        }
+        addError = nil
+        reload()
+        return true
+    }
+
+    /// Copies picked images into `<theme>/backgrounds/`, skipping anything
+    /// that is not a recognised image type or is over the size cap other
+    /// downloads use — the file panel lets you pick a video by mistake, this
+    /// is where that gets caught.
+    private func copyWallpapers(_ urls: [URL], into destination: URL) throws {
+        guard !urls.isEmpty else { return }
+        let backgrounds = destination.appendingPathComponent("backgrounds")
+        try FileManager.default.createDirectory(at: backgrounds, withIntermediateDirectories: true)
+        for url in urls {
+            guard Self.importableImages.contains(url.pathExtension.lowercased()) else { continue }
+            guard let size = try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int,
+                  size <= Self.maxWallpaperImport else { continue }
+            guard let out = Paths.safeChild(of: backgrounds, named: url.lastPathComponent) else { continue }
+            var candidate = out
+            var n = 1
+            while FileManager.default.fileExists(atPath: candidate.path) {
+                candidate = backgrounds.appendingPathComponent(
+                    "\(out.deletingPathExtension().lastPathComponent)-\(n).\(out.pathExtension)")
+                n += 1
+            }
+            try? FileManager.default.copyItem(at: url, to: candidate)
+        }
     }
 }

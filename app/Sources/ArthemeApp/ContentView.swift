@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var query = ""
     @State private var onlyLight = false
     @State private var onlyDark = false
+    @State private var showingAdd = false
 
     private var visible: [Theme] {
         store.themes.filter { theme in
@@ -36,6 +37,9 @@ struct ContentView: View {
             for: NSApplication.didBecomeActiveNotification)) { _ in
             store.reload()
         }
+        .sheet(isPresented: $showingAdd) {
+            AddThemeView().environmentObject(store)
+        }
     }
 
     private var toolbar: some View {
@@ -50,6 +54,12 @@ struct ContentView: View {
             Button { store.reload() } label: { Image(systemName: "arrow.clockwise") }
                 .buttonStyle(.borderless)
                 .help("Reload the list from disk")
+            Button { showingAdd = true } label: { Image(systemName: "plus") }
+                .buttonStyle(.borderless)
+                .help("Add a theme")
+            Button { store.revealLog() } label: { Image(systemName: "doc.text.magnifyingglass") }
+                .buttonStyle(.borderless)
+                .help("Open the switch log — what each app did on the last theme change")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

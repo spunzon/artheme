@@ -22,6 +22,8 @@ public struct Library: Sendable {
     public var themesDirectory: URL { root.appendingPathComponent("themes") }
     public var generated: URL { root.appendingPathComponent("generated") }
     public var currentLink: URL { root.appendingPathComponent("current") }
+    /// One line per switch, one indented line per integration — see `Switcher.record`.
+    public var lastApplyLog: URL { generated.appendingPathComponent("last-apply.log") }
 
     public func ensureDirectories() throws {
         for d in [themesDirectory, generated] {

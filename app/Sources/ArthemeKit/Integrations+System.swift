@@ -195,12 +195,19 @@ public struct WallpaperIntegration: Integration {
         machine.library("Application Support/com.apple.wallpaper/Store/Index.plist")
     }
 
+    // Every branch below returns a `.detail`, even the ones that touch
+    // nothing: "wallpaper: ok" on every switch told nobody why their desktop
+    // hadn't changed. It never reaches the person switching themes — only
+    // generated/last-apply.log — so it costs nothing to be verbose here.
     public func apply(_ theme: Theme, _ l: Library) throws -> Outcome {
-        guard machine.appliesLive else { return .done }
+        guard machine.appliesLive else { return .detail("skipped — not applying live (test run)") }
         if let image = l.wallpaper(for: theme) {
             let round = WallpaperArbiter.shared.currentRound
-            guard WallpaperArbiter.shared.claim(.photograph, round: round) else { return .done }
-            return set(image).map { Outcome.note($0) } ?? .done
+            guard WallpaperArbiter.shared.claim(.photograph, round: round) else {
+                return .detail("skipped — a later switch already claimed the desktop")
+            }
+            if let error = set(image) { return .note(error) }
+            return .detail("set \(image.lastPathComponent)")
         }
 
         // No picture yet. If one is on its way — the theme knows where it came
@@ -209,13 +216,21 @@ public struct WallpaperIntegration: Integration {
         // A theme that ships none at all still leaves the desktop alone, on
         // purpose: a dynamic system wallpaper has no file path to restore.
         let source = theme.directory.appendingPathComponent("source.json")
-        guard FileManager.default.fileExists(atPath: source.path),
-              let flat = SolidImage.url(for: theme.background, in: l) else { return .done }
+        guard FileManager.default.fileExists(atPath: source.path) else {
+            return .detail("no wallpapers on disk and no source.json — "
+                           + "desktop left as-is, by design")
+        }
+        guard let flat = SolidImage.url(for: theme.background, in: l) else {
+            return .detail("could not generate a flat-colour fallback")
+        }
         // Loses to a photograph that has already landed in this round.
         guard WallpaperArbiter.shared.claim(.flatColour,
                                            round: WallpaperArbiter.shared.currentRound)
-        else { return .done }
-        return set(flat).map { Outcome.note($0) } ?? .done
+        else {
+            return .detail("skipped flat colour — a photograph already won this round")
+        }
+        if let error = set(flat) { return .note(error) }
+        return .detail("set flat-colour fallback \(flat.lastPathComponent) while wallpapers download")
     }
 
     /// Apply to EVERY Space and display.
