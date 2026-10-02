@@ -88,7 +88,7 @@ Needs the Command Line Tools (`xcode-select --install`) and nothing else:
 git clone https://github.com/spunzon/artheme ~/projects/artheme
 cd ~/projects/artheme/app
 ./Scripts/bundle.sh            # builds Artheme.app and a zip, universal
-swift run ArthemeTests         # 51 checks
+swift run ArthemeTests         # 65 checks
 ```
 
 The CLI lives inside the bundle; `artheme install-cli` puts it on your PATH.
@@ -236,7 +236,7 @@ from a stranger's repository, and `install` still edits your app configs. Read
 `bin/theme` before trusting it — it is one file.
 
 ```bash
-cd app && swift run ArthemeTests   # 51 checks: the core, all 15 integrations, and the updater
+cd app && swift run ArthemeTests   # 65 checks: the core, all 15 integrations, and the updater
 ```
 
 Integrations write through an injectable `Machine`, so the tests point a whole
